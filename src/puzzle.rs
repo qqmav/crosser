@@ -16,10 +16,10 @@ struct Square {
 }
 
 impl Square {
-    fn new(x: u32, y: u32) -> Self {
+    fn new(x: u32, y: u32, label: Option<u32>) -> Self {
         Square {
-            content: SquareContents::TextContent("Test".to_string(),None),
-            label: None,
+            content: SquareContents::TextContent("".to_string(),None),
+            label,
             x,
             y,
         }
@@ -42,13 +42,26 @@ pub struct Puzzle {
 impl Puzzle {
     pub fn new(variant: PuzzleType) -> Self {
         let d = match_puzzle_dim(&variant);
-        let v = vec!(d * d,)
+        let mut v: Vec<Square> = Vec::with_capacity(d * d);
+        
+        // Squares are stored in row-major order
+        for y_index in 0..d  as u32{
+            for x_index in 0..d as u32{
+                v.push(Square::new(x_index,y_index,Some(y_index * (d as u32) + x_index)));
+            }
+        }
+
         Puzzle {
             title: "New Puzzle".to_string(),
-            dim: d;
+            dim: d,
             variant,
-            squares: vec![d * d],
+            squares: v,
         }
+    }
+
+    pub fn at(&self, x: usize, y: usize) -> &Square {
+        let index = y * self.dim + x;
+        &self.squares[index]
     }
 }
 

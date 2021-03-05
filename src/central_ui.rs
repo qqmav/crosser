@@ -1,8 +1,9 @@
-use iced::{Column, Sandbox, Text, Element};
+use iced::{canvas, Canvas, Column, Sandbox, Text, Element};
 use crate::puzzle;
 
 pub struct CrosserUI {
     puzzle: puzzle::Puzzle,
+    puzzle_view: can
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -13,7 +14,7 @@ impl Sandbox for CrosserUI {
     type Message = Message; 
 
     fn new() -> Self {
-        CrosserUI { puzzle: puzzle::Puzzle::new(puzzle::PuzzleType::Mini) }
+        CrosserUI { puzzle: puzzle::Puzzle::new(puzzle::PuzzleType::Weekday) }
     }
 
     fn title(&self) -> String {
