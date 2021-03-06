@@ -1,24 +1,34 @@
-enum SquareContents {
+pub enum SquareContents {
     Blocker,
     TextContent(String, Option<SquareModifier>),
 }
 
-enum SquareModifier {
-    Shading(String),
-    Circle(String),
+pub enum SquareModifier {
+    Shading,
+    Circle,
 }
 
-struct Square {
-    content: SquareContents,
-    label: Option<u32>,
-    x: u32,
-    y: u32,
+pub struct Square {
+    pub content: SquareContents,
+    pub label: Option<u32>,
+    pub x: u32,
+    pub y: u32,
 }
 
 impl Square {
     fn new(x: u32, y: u32, label: Option<u32>) -> Self {
+        let mut c = SquareContents::TextContent("".to_string(),None);
+        if label == Some(5) {
+            c = SquareContents::Blocker;
+        }
+        if label == Some(30) {
+            c = SquareContents::TextContent("A".to_string(),Some(SquareModifier::Shading));
+        }
+        if label == Some(45) {
+            c = SquareContents::TextContent("A".to_string(),Some(SquareModifier::Circle));
+        }
         Square {
-            content: SquareContents::TextContent("".to_string(),None),
+            content: c,
             label,
             x,
             y,
@@ -27,9 +37,7 @@ impl Square {
 }
 
 pub enum PuzzleType {
-    Mini,
     Weekday,
-    Sunday,
 }
 
 pub struct Puzzle {
@@ -59,16 +67,14 @@ impl Puzzle {
         }
     }
 
-    pub fn at(&self, x: usize, y: usize) -> &Square {
-        let index = y * self.dim + x;
-        &self.squares[index]
+    pub fn at(&self, x: u32, y: u32) -> &Square {
+        let index = y * self.dim as u32 + x;
+        &self.squares[index as usize]
     }
 }
 
-fn match_puzzle_dim(p: &PuzzleType) -> usize {
+pub fn match_puzzle_dim(p: &PuzzleType) -> usize {
     match p {
-        PuzzleType::Mini => 5,
         PuzzleType::Weekday => 15,
-        PuzzleType::Sunday => 21,
     }
 }

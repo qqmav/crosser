@@ -1,5 +1,6 @@
 mod central_ui;
-mod puzzle;
+mod puzzle_backend;
+mod puzzle_canvas;
 
 use iced::{Application, Settings};
 

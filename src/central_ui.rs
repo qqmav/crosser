@@ -1,9 +1,9 @@
-use iced::{canvas, Canvas, Column, Sandbox, Text, Element};
-use crate::puzzle;
+use iced::{Align, Canvas, Column, Element, Length, Row, Sandbox, Text};
+use crate::puzzle_backend;
+use crate::puzzle_canvas;
 
 pub struct CrosserUI {
-    puzzle: puzzle::Puzzle,
-    puzzle_view: can
+    puzzle_ui: puzzle_canvas::PuzzleCanvas,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -14,7 +14,9 @@ impl Sandbox for CrosserUI {
     type Message = Message; 
 
     fn new() -> Self {
-        CrosserUI { puzzle: puzzle::Puzzle::new(puzzle::PuzzleType::Weekday) }
+        CrosserUI { 
+                    puzzle_ui: puzzle_canvas::PuzzleCanvas::new(puzzle_backend::PuzzleType::Weekday),
+                  }
     }
 
     fn title(&self) -> String {
@@ -22,14 +24,21 @@ impl Sandbox for CrosserUI {
     }
 
     fn view(&mut self) -> Element<Message> {
-        Column::new()
-            .push(
-                Text::new("Test".to_string()).size(50),
-            )
-            .into()
+        Row::new()
+        .padding(20)
+        .align_items(Align::Center)
+        .push(
+            Canvas::new(&mut self.puzzle_ui)
+            .width(Length::Fill)
+            .height(Length::Fill)
+        )
+        .push(
+            Text::new(String::from("test widget"))
+        )
+        .into()
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, _message: Message) {
     }
 }
 
