@@ -1,4 +1,4 @@
-use iced::{Align, Canvas, Column, Element, Length, Row, Sandbox, Text};
+use iced::{Align, Canvas, Element, Length, Row, Sandbox, Text};
 use crate::puzzle_backend;
 use crate::puzzle_canvas;
 
