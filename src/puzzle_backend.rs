@@ -28,7 +28,10 @@ impl Square {
 }
 
 pub enum PuzzleType {
+    Mini,
     Weekday,
+    WeekdayAssymetric,
+    Sunday,
 }
 
 pub struct Puzzle {
@@ -76,7 +79,7 @@ impl Puzzle {
             },
         };
         match self.variant {
-            PuzzleType::Weekday => {
+            PuzzleType::Weekday  | PuzzleType::Sunday => {
                 // Also block symmetric piece.
                 if !nested {
                     if y < (self.dim / 2) as u32 {
@@ -127,6 +130,16 @@ impl Puzzle {
                 } else {
                     self.squares[index].content = SquareContents::TextContent(c.to_string(),modifier_option.clone());
                 }
+            }
+            _ => ()
+        }
+    }
+
+    pub fn clear_sq_contents(&mut self, x: u32, y: u32) {
+        let index = self.xy_to_index(x, y);
+        match &self.squares[index].content {
+            SquareContents::TextContent(_,modifier_option) => {
+                self.squares[index].content = SquareContents::TextContent(String::new(),modifier_option.clone());
             }
             _ => ()
         }
@@ -211,6 +224,9 @@ impl Puzzle {
 
 pub fn match_puzzle_dim(p: &PuzzleType) -> usize {
     match p {
+        PuzzleType::Mini => 5,
         PuzzleType::Weekday => 15,
+        PuzzleType::WeekdayAssymetric => 15,
+        PuzzleType::Sunday => 21,
     }
 }

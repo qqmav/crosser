@@ -177,6 +177,18 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                         iced::keyboard::KeyCode::RControl => {
                             self.rctrl_held = true;
                         },
+                        iced::keyboard::KeyCode::Backspace => {
+                                if let Some((tx,ty)) = self.selected_square {
+                                    self.backend.clear_sq_contents(tx,ty);
+                                    ui_updated = true;
+                                }
+                        },
+                        iced::keyboard::KeyCode::Delete => {
+                                if let Some((tx,ty)) = self.selected_square {
+                                    self.backend.clear_sq_contents(tx,ty);
+                                    ui_updated = true;
+                                }
+                        },
                         _ => {
                             if let Some(c) = match_keycode_to_char(&kc) {
                                 if let Some((tx,ty)) = self.selected_square {

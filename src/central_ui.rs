@@ -15,7 +15,7 @@ impl Sandbox for CrosserUI {
 
     fn new() -> Self {
         CrosserUI { 
-                    puzzle_ui: puzzle_canvas::PuzzleCanvas::new(puzzle_backend::PuzzleType::Weekday),
+                    puzzle_ui: puzzle_canvas::PuzzleCanvas::new(puzzle_backend::PuzzleType::Sunday),
                   }
     }
 
