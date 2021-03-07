@@ -159,7 +159,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                     ui_updated = true;
                     self.selected_square = None;
                     if let Some((tx,ty)) = self.hovered_square {
-                        self.backend.cycle_blocker(tx,ty);
+                        self.backend.cycle_blocker(tx,ty,false);
                     }
                 },
                 _ => ()

@@ -65,7 +65,7 @@ impl Puzzle {
         &self.squares[index]
     }
 
-    pub fn cycle_blocker(&mut self, x: u32, y: u32)  {
+    pub fn cycle_blocker(&mut self, x: u32, y: u32, nested: bool)  {
         let index = self.xy_to_index(x, y);
         match self.squares[index].content {
             SquareContents::Blocker => {
@@ -75,6 +75,23 @@ impl Puzzle {
                 self.squares[index].content = SquareContents::Blocker;
             },
         };
+        match self.variant {
+            PuzzleType::Weekday => {
+                // Also block symmetric piece.
+                if !nested {
+                    if y < (self.dim / 2) as u32 {
+                        self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
+                    } else if y > (self.dim / 2) as u32 {
+                        self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
+                    } else {
+                        if x != self.dim as u32 / 2 {
+                            self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
+                        }
+                    }
+                }
+            },
+            _ => (),
+        }
         self.calculate_clues();
     }
 
