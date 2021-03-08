@@ -18,7 +18,7 @@ impl Sandbox for CrosserUI {
     type Message = Message; 
 
     fn new() -> Self {
-        let t = puzzle_backend::PuzzleType::Mini;
+        let t = puzzle_backend::PuzzleType::Weekday;
         let p = Rc::new(RefCell::new(puzzle_backend::Puzzle::new(t)));
         let u = puzzle_canvas::PuzzleCanvas::new(p.clone());
         CrosserUI { 

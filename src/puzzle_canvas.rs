@@ -193,9 +193,17 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                 },
                 mouse::Event::ButtonPressed(mouse::Button::Right) => {
                     ui_updated = true;
-                    self.selected_square = None;
-                    if let Some((tx,ty)) = self.hovered_square {
-                        self.backend.borrow_mut().cycle_blocker(tx,ty,false);
+                    match self.selected_square {
+                        Some((_sx,_sy)) => {
+                            self.selected_square = None;
+                            ui_updated = true;
+                        },
+                        None => {
+                            if let Some((tx,ty)) = self.hovered_square {
+                                self.backend.borrow_mut().cycle_blocker(tx,ty,false);
+                                ui_updated = true;
+                            }
+                        },
                     }
                 },
                 _ => ()
@@ -477,6 +485,20 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             );
                         let r_c = Color::from_rgba(0.0,0.0,1.0,0.2);
                         frame.fill(&r_path,r_c);
+                        match self.backend.borrow().variant {
+                            puzzle_backend::PuzzleType::Weekday | puzzle_backend::PuzzleType::Sunday => {
+                                if (sx != self.dim / 2 as u32) || (sy != self.dim / 2 as u32) {
+                                    let index = (self.dim - sx - 1) as usize * self.dim as usize + (self.dim - sy - 1) as usize;
+                                    let s_path = Path::rectangle(
+                                        frame_grid_info.frame_square_infos[index].content_top_left_corner,
+                                        Size::new(frame_grid_info.content_width, frame_grid_info.content_width)
+                                    );
+                                    let s_c = Color::from_rgba(0.0, 0.0, 1.0, 0.2);
+                                    frame.fill(&s_path,s_c);
+                                }
+                            },
+                            _ => (),
+                        }
                     } 
                 },
                 Some((hx,hy)) => {

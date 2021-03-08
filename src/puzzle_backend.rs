@@ -111,14 +111,8 @@ impl Puzzle {
             PuzzleType::Weekday  | PuzzleType::Sunday => {
                 // Also block symmetric piece.
                 if !nested {
-                    if y < (self.dim / 2) as u32 {
+                    if (y != self.dim as u32 / 2) || (x != self.dim as u32 / 2) {
                         self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
-                    } else if y > (self.dim / 2) as u32 {
-                        self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
-                    } else {
-                        if x != self.dim as u32 / 2 {
-                            self.cycle_blocker(self.dim as u32 - x - 1, self.dim as u32 - y - 1, true);
-                        }
                     }
                 }
             },
