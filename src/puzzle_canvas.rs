@@ -359,7 +359,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 let r_path = Path::rectangle(
                                     self.grid_info.frame_square_infos[(sq.x * self.dim + sq.y) as usize].content_top_left_corner,
                                     Size::new(self.grid_info.content_width,self.grid_info.content_width));
-                                let r_c = Color::from_rgba(1.0,1.0,0.0,0.2);
+                                let r_c = Color::from_rgba(1.0,1.0,0.0,0.3);
                                 frame.fill(&r_path,r_c);
                             }
                         },
