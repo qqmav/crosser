@@ -227,34 +227,66 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                         },
                         iced::keyboard::KeyCode::Up => {
                             if let Some((tx,ty)) = self.selected_square {
-                                if ty > 0 {
-                                    self.selected_square = Some((tx,ty-1));
-                                    ui_updated = true;
-                                }
+                                match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Down => {
+                                        if ty > 0 {
+                                            self.selected_square = Some((tx,ty-1));
+                                            ui_updated = true;
+                                        }
+                                    },
+                                    puzzle_backend::EntryVariant::Across => {
+                                        self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                        ui_updated = true;
+                                    },
+                                };
                             }
                         },
                         iced::keyboard::KeyCode::Down => {
                             if let Some((tx,ty)) = self.selected_square {
-                                if ty < self.dim - 1 {
-                                    self.selected_square = Some((tx,ty+1));
-                                    ui_updated = true;
-                                }
+                                match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Down => {
+                                        if ty < self.dim - 1 {
+                                            self.selected_square = Some((tx,ty+1));
+                                            ui_updated = true;
+                                        }
+                                    },
+                                    puzzle_backend::EntryVariant::Across => {
+                                        self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                        ui_updated = true;
+                                    },
+                                };
                             }
                         },
                         iced::keyboard::KeyCode::Left => {
                             if let Some((tx,ty)) = self.selected_square {
-                                if tx > 0 {
-                                    self.selected_square = Some((tx-1,ty));
-                                    ui_updated = true;
-                                }
+                                match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => {
+                                        if tx > 0 {
+                                            self.selected_square = Some((tx-1,ty));
+                                            ui_updated = true;
+                                        }
+                                    },
+                                    puzzle_backend::EntryVariant::Down => {
+                                        self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                        ui_updated = true;
+                                    },
+                                };
                             }
                         },
                         iced::keyboard::KeyCode::Right => {
                             if let Some((tx,ty)) = self.selected_square {
-                                if tx < self.dim - 1 {
-                                    self.selected_square = Some((tx+1,ty));
-                                    ui_updated = true;
-                                }
+                                match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => {
+                                        if tx < self.dim - 1 {
+                                            self.selected_square = Some((tx+1,ty));
+                                            ui_updated = true;
+                                        }
+                                    },
+                                    puzzle_backend::EntryVariant::Down => {
+                                        self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                        ui_updated = true;
+                                    },
+                                };
                             }
                         },
                         iced::keyboard::KeyCode::Enter => {
@@ -265,7 +297,30 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 };
                                 ui_updated = true;
                             }
-                        }
+                        },
+                        iced::keyboard::KeyCode::Space => {
+                            if let Some ((tx,ty)) = self.selected_square {
+                                self.backend.borrow_mut().clear_sq_contents(tx,ty);
+                                let next = match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => {
+                                        self.backend.borrow().at(tx,ty).next_across
+                                    },
+                                    puzzle_backend::EntryVariant::Down => {
+                                        self.backend.borrow().at(tx,ty).next_down
+                                    },
+                                };
+                                match next {
+                                    Some(s) =>  {
+                                        let next_sq = &self.backend.borrow().squares[s];
+                                        self.selected_square = Some((next_sq.x,next_sq.y));
+                                    }
+                                    None => {
+                                        self.selected_square = None;
+                                    },
+                                };
+                                ui_updated = true;
+                            }
+                        },
                         _ => {
                             if let Some(c) = match_keycode_to_char(&kc) {
                                 if let Some((tx,ty)) = self.selected_square {
