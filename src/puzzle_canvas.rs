@@ -85,8 +85,11 @@ impl GridUIInfo {
     }
 }
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 pub struct PuzzleCanvas {
-    backend: puzzle_backend::Puzzle,
+    backend: Rc<RefCell<puzzle_backend::Puzzle>>,
     dim: u32,
     grid_info: GridUIInfo,
     cursor_pos: Point,
@@ -94,6 +97,7 @@ pub struct PuzzleCanvas {
     rctrl_held: bool,
     hovered_square: Option<(u32, u32)>,
     selected_square: Option<(u32, u32)>,
+    selected_variant: puzzle_backend::EntryVariant,
     grid_cache: canvas::Cache,
     label_cache: canvas::Cache,
     content_cache: canvas::Cache,
@@ -102,10 +106,10 @@ pub struct PuzzleCanvas {
 }
 
 impl PuzzleCanvas {
-    pub fn new(variant: puzzle_backend::PuzzleType) -> PuzzleCanvas {
-        let d = puzzle_backend::match_puzzle_dim(&variant);
+    pub fn new(backend: Rc<RefCell<puzzle_backend::Puzzle>>) -> PuzzleCanvas {
+        let d = puzzle_backend::match_puzzle_dim(&backend.borrow().variant);
         PuzzleCanvas {
-            backend: puzzle_backend::Puzzle::new(variant),
+            backend,
             grid_info: GridUIInfo::new(&Rectangle::with_size(Size::new(1.0,1.0)), d as u32),
             dim: d as u32,
             cursor_pos: Point::new(0.0,0.0),
@@ -113,6 +117,7 @@ impl PuzzleCanvas {
             rctrl_held: false,
             hovered_square: None,
             selected_square: None,
+            selected_variant: puzzle_backend::EntryVariant::Across,
             grid_cache: Default::default(),
             label_cache: Default::default(),
             content_cache: Default::default(),
@@ -147,11 +152,18 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                 mouse::Event::ButtonPressed(mouse::Button::Left) => {
                     if self.lctrl_held || self.rctrl_held {
                         if let Some((tx,ty)) = self.hovered_square {
-                            let did_modify_sq = self.backend.cycle_modifier(tx,ty);
+                            let did_modify_sq = self.backend.borrow_mut().cycle_modifier(tx,ty);
                             ui_updated = did_modify_sq;
                         }
                     } else {
-                        self.selected_square = self.hovered_square;
+                        if self.hovered_square == self.selected_square {
+                            self.selected_variant = match self.selected_variant {
+                                puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
+                                puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
+                            }
+                        } else {
+                            self.selected_square = self.hovered_square;
+                        }
                         self.highlighter_cache.clear();
                     }
                 },
@@ -159,7 +171,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                     ui_updated = true;
                     self.selected_square = None;
                     if let Some((tx,ty)) = self.hovered_square {
-                        self.backend.cycle_blocker(tx,ty,false);
+                        self.backend.borrow_mut().cycle_blocker(tx,ty,false);
                     }
                 },
                 _ => ()
@@ -179,20 +191,20 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                         },
                         iced::keyboard::KeyCode::Backspace => {
                                 if let Some((tx,ty)) = self.selected_square {
-                                    self.backend.clear_sq_contents(tx,ty);
+                                    self.backend.borrow_mut().clear_sq_contents(tx,ty);
                                     ui_updated = true;
                                 }
                         },
                         iced::keyboard::KeyCode::Delete => {
                                 if let Some((tx,ty)) = self.selected_square {
-                                    self.backend.clear_sq_contents(tx,ty);
+                                    self.backend.borrow_mut().clear_sq_contents(tx,ty);
                                     ui_updated = true;
                                 }
                         },
                         _ => {
                             if let Some(c) = match_keycode_to_char(&kc) {
                                 if let Some((tx,ty)) = self.selected_square {
-                                    self.backend.modify_sq_contents(tx,ty,c,m.shift);
+                                    self.backend.borrow_mut().modify_sq_contents(tx,ty,c,m.shift);
                                     ui_updated = true;
                                 }
                             }
@@ -231,7 +243,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
             let dark_bg = Path::rectangle(Point::new(0.0,0.0), Size::new(self.grid_info.min_size,self.grid_info.min_size));
             frame.fill(&dark_bg, Color::BLACK);
             for sq in &self.grid_info.frame_square_infos {
-                if let puzzle_backend::SquareContents::TextContent(_s,m) = &self.backend.at(sq.x, sq.y).content {
+                if let puzzle_backend::SquareContents::TextContent(_s,m) = &self.backend.borrow().at(sq.x, sq.y).content {
                     let sq_path = Path::rectangle(sq.content_top_left_corner,Size::new(self.grid_info.content_width,self.grid_info.content_width));
                     let color = match m {
                         Some(puzzle_backend::SquareModifier::Shading) => Color::from_rgba(0.8, 0.8, 0.8, 1.0),
@@ -244,7 +256,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
 
         let labels = self.label_cache.draw(bounds.size(), |frame| {
             for sq in &self.grid_info.frame_square_infos {
-                if let Some(l) = self.backend.at(sq.x,sq.y).label {
+                if let Some(l) = self.backend.borrow().at(sq.x,sq.y).label {
                     let text = Text {
                         color: Color::BLACK,
                         position: sq.content_top_left_corner,
@@ -259,7 +271,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
 
         let content = self.content_cache.draw(bounds.size(), |frame| {
             for sq in &self.grid_info.frame_square_infos {
-                if let puzzle_backend::SquareContents::TextContent(s,_m) = &self.backend.at(sq.x,sq.y).content {
+                if let puzzle_backend::SquareContents::TextContent(s,_m) = &self.backend.borrow().at(sq.x,sq.y).content {
                     let num_chars = s.len();
                     let sq_text_size = match num_chars {
                         1 => self.grid_info.content_width,
@@ -287,37 +299,73 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                 ..Default::default()
             };
             for sq in &self.grid_info.frame_square_infos {
-                if let puzzle_backend::SquareContents::TextContent(_s,Some(puzzle_backend::SquareModifier::Circle)) = &self.backend.at(sq.x,sq.y).content {
+                if let puzzle_backend::SquareContents::TextContent(_s,Some(puzzle_backend::SquareModifier::Circle)) = &self.backend.borrow().at(sq.x,sq.y).content {
                     frame.stroke(&Path::circle(sq.center, 0.92 * self.grid_info.content_width / 2.0),stroke);
                 }
             }
         });
 
         let highlighter = self.highlighter_cache.draw(bounds.size(), |frame| {
-            let pc_tuple: Option<(Path,Color)> = match self.selected_square {
+            match self.selected_square {
                 None => {
-                    match project_cursor_into_square(&self.cursor_pos,&self.grid_info.square_width, &self.dim) {
-                        Some((sx,sy)) => Some((
-                            Path::rectangle(
+                    if let Some((sx,sy)) = project_cursor_into_square(&self.cursor_pos,&self.grid_info.square_width, &self.dim) {
+                        let r_path = Path::rectangle(
                                 self.grid_info.frame_square_infos[sx as usize * self.dim as usize + sy as usize].content_top_left_corner,
                                 Size::new(self.grid_info.content_width,self.grid_info.content_width)
-                            ),
-                            Color::from_rgba(0.0,0.0,1.0,0.2)
-                            )),
-                        None => None,
-                        }
-                    },
-                Some((hx,hy)) => Some((
-                    Path::rectangle(
+                            );
+                        let r_c = Color::from_rgba(0.0,0.0,1.0,0.2);
+                        frame.fill(&r_path,r_c);
+                    } 
+                },
+                Some((hx,hy)) => {
+                    // Fill Selected with green
+                    let r_path = Path::rectangle(
                         self.grid_info.frame_square_infos[hx as usize * self.dim as usize + hy as usize].content_top_left_corner,
                         Size::new(self.grid_info.content_width,self.grid_info.content_width)
-                    ),
-                    Color::from_rgba(1.0,1.0,0.0,0.5)
-                    )),
-            };
-            match pc_tuple {
-                Some((p,c)) => {frame.fill(&p,c);},
-                None => {}
+                    );
+                    let r_c = Color::from_rgba(0.0,1.0,0.0,0.5);
+                    frame.fill(&r_path,r_c);
+                    // Fill rest of clue with yellow
+                    let entries: Option<Vec<usize>> = match self.selected_variant {
+                        puzzle_backend::EntryVariant::Across => {
+                            if let Some(selected_clue) = self.backend.borrow().at(hx,hy).across_entry {
+                                let across_entries = &self.backend.borrow().across_entries;
+                                if let Some(list_index) = across_entries.iter().position(|x| x.label == selected_clue) {
+                                    Some(across_entries[list_index].member_indices.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        puzzle_backend::EntryVariant::Down => {
+                            if let Some(selected_clue) = self.backend.borrow().at(hx,hy).down_entry {
+                                let down_entries = &self.backend.borrow().down_entries;
+                                if let Some(list_index) = down_entries.iter().position(|x| x.label == selected_clue) {
+                                    Some(down_entries[list_index].member_indices.clone())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            } 
+                        }
+                    };
+                    match entries {
+                        Some(v) => {
+                            for sq_index in v {
+                                let sq = &self.backend.borrow().squares[sq_index];
+                                let r_path = Path::rectangle(
+                                    self.grid_info.frame_square_infos[(sq.x * self.dim + sq.y) as usize].content_top_left_corner,
+                                    Size::new(self.grid_info.content_width,self.grid_info.content_width));
+                                let r_c = Color::from_rgba(1.0,1.0,0.0,0.2);
+                                frame.fill(&r_path,r_c);
+                            }
+                        },
+                        None => {},
+                    }
+               },
             };
         });
         

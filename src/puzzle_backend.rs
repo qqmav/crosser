@@ -14,17 +14,34 @@ pub struct Square {
     pub label: Option<u32>,
     pub x: u32,
     pub y: u32,
+    pub across_entry: Option<u32>,
+    pub down_entry: Option<u32>,
 }
 
 impl Square {
-    fn new(x: u32, y: u32, label: Option<u32>) -> Self {
+    fn new(x: u32, y: u32) -> Self {
         Square {
             content: SquareContents::TextContent("".to_string(),None),
-            label,
+            label: None,
             x,
             y,
+            across_entry: None,
+            down_entry: None,
         }
     }
+}
+
+#[derive(Clone)]
+pub enum EntryVariant {
+    Across,
+    Down,
+}
+
+#[derive(Clone)]
+pub struct PuzzleEntry {
+    pub label: u32,
+    pub variant: EntryVariant,
+    pub member_indices: Vec<usize>,
 }
 
 pub enum PuzzleType {
@@ -38,7 +55,9 @@ pub struct Puzzle {
     pub title: String,
     dim: usize,
     pub variant: PuzzleType,
-    squares: Vec<Square>,
+    pub squares: Vec<Square>,
+    pub across_entries: Vec<PuzzleEntry>,
+    pub down_entries: Vec<PuzzleEntry>,
 }
 
 impl Puzzle {
@@ -49,7 +68,7 @@ impl Puzzle {
         // Squares are stored in row-major order
         for y_index in 0..d  as u32{
             for x_index in 0..d as u32{
-                v.push(Square::new(x_index,y_index,Some(y_index * (d as u32) + x_index)));
+                v.push(Square::new(x_index,y_index));
             }
         }
 
@@ -58,6 +77,8 @@ impl Puzzle {
             dim: d,
             variant,
             squares: v,
+            across_entries: Vec::new(),
+            down_entries: Vec::new(),
         };
         p.calculate_clues();
         p
@@ -215,10 +236,110 @@ impl Puzzle {
                 self.squares[index].label = l;
             }
         }
+
+        // Construct across entries
+        self.across_entries.clear();
+        for y in 0..self.dim as u32 {
+            let mut current_across = 0;
+            let mut entries: Vec<usize> = Vec::new();
+            for x in 0..self.dim as u32 {
+                let index = self.xy_to_index(x, y);
+                if let Some(l) = self.squares[index].label {
+                    if entries.len() == 0 {
+                        current_across = l;
+                    }
+                };
+                match &self.squares[index].content {
+                    SquareContents::Blocker => {
+                        self.squares[index].across_entry = None;
+                        if entries.len() > 0 {
+                            let e = PuzzleEntry {
+                                label: current_across,
+                                variant: EntryVariant::Across,
+                                member_indices: entries,
+                            };
+                            self.across_entries.push(e);
+                            entries = Vec::new();
+                        }
+                    }
+                    SquareContents::TextContent(_,_) => {
+                        self.squares[index].across_entry = Some(current_across);
+                        entries.push(index);
+                    }
+                }
+            }
+
+            if entries.len() > 0 {
+                let e = PuzzleEntry {
+                    label: current_across,
+                    variant: EntryVariant::Down,
+                    member_indices: entries,
+                };
+                self.across_entries.push(e);
+            }
+        }
+
+        // Construct down entries
+        self.down_entries.clear();
+        for x in 0..self.dim as u32 {
+            let mut current_down = 0;
+            let mut entries: Vec<usize> = Vec::new();
+            for y in 0..self.dim as u32 {
+                let index = self.xy_to_index(x, y);
+                if let Some(l) = self.squares[index].label {
+                    if entries.len() == 0 {
+                        current_down = l;
+                    }
+                };
+                match &self.squares[index].content {
+                    SquareContents::Blocker => {
+                        self.squares[index].down_entry = None;
+                        if entries.len() > 0 {
+                            let e = PuzzleEntry {
+                                label: current_down,
+                                variant: EntryVariant::Across,
+                                member_indices: entries,
+                            };
+                            self.down_entries.push(e);
+                            entries = Vec::new();
+                        }
+                    }
+                    SquareContents::TextContent(_,_) => {
+                        self.squares[index].down_entry = Some(current_down);
+                        entries.push(index);
+                    }
+                }
+            }
+
+            if entries.len() > 0 {
+                let e = PuzzleEntry {
+                    label: current_down,
+                    variant: EntryVariant::Across,
+                    member_indices: entries,
+                };
+                self.down_entries.push(e);
+            }
+        }
+
+        // Down entries won't be in increasing order, so sort them.
+        self.down_entries.sort_by(|a,b| a.label.cmp(&b.label));
     }
 
     fn xy_to_index(&self, x: u32, y: u32) -> usize {
         (y * self.dim as u32 + x) as usize
+    }
+
+    fn get_clue_string(&self, indices: &Vec<usize>) -> String {
+        let mut s = String::new();
+        for index in indices { 
+            if let SquareContents::TextContent(sq_content,_) = &self.squares[*index].content {
+                match sq_content.as_str() {
+                    "" => s.push('_'),
+                    _ => s.push_str(sq_content),
+                };
+            };
+        };
+        s
     }
 }
 

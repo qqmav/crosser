@@ -2,7 +2,11 @@ use iced::{Align, Canvas, Element, Length, Row, Sandbox, Text};
 use crate::puzzle_backend;
 use crate::puzzle_canvas;
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 pub struct CrosserUI {
+    backend: Rc<RefCell<puzzle_backend::Puzzle>>,
     puzzle_ui: puzzle_canvas::PuzzleCanvas,
 }
 
@@ -14,9 +18,13 @@ impl Sandbox for CrosserUI {
     type Message = Message; 
 
     fn new() -> Self {
+        let t = puzzle_backend::PuzzleType::Mini;
+        let p = Rc::new(RefCell::new(puzzle_backend::Puzzle::new(t)));
+        let u = puzzle_canvas::PuzzleCanvas::new(p.clone());
         CrosserUI { 
-                    puzzle_ui: puzzle_canvas::PuzzleCanvas::new(puzzle_backend::PuzzleType::Sunday),
-                  }
+                backend: p,
+                puzzle_ui: u,
+                }
     }
 
     fn title(&self) -> String {
