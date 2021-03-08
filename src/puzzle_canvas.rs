@@ -26,7 +26,7 @@ impl GridUIInfo {
             true => canv_w,
             false  => canv_h,
         };
-        let square_width = min_size / dim as f32;
+        let square_width = 0.85 * (min_size / dim as f32);
 
         let padding_width = 0.05 * square_width;
         let content_width = square_width - padding_width;
@@ -206,6 +206,27 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 if let Some((tx,ty)) = self.selected_square {
                                     self.backend.borrow_mut().modify_sq_contents(tx,ty,c,m.shift);
                                     ui_updated = true;
+                                    if !m.control {
+                                        // If ctrl isnt held, move to next letter.
+                                        let next = match self.selected_variant {
+                                            puzzle_backend::EntryVariant::Across => {
+                                                self.backend.borrow().at(tx,ty).next_across
+                                            }
+                                            puzzle_backend::EntryVariant::Down => {
+                                                self.backend.borrow().at(tx,ty).next_down
+                                            }
+                                        };
+
+                                        match next {
+                                            Some(s) =>  {
+                                                let next_sq = &self.backend.borrow().squares[s];
+                                                self.selected_square = Some((next_sq.x,next_sq.y));
+                                            }
+                                            None => {
+                                                self.selected_square = None;
+                                            },
+                                        };
+                                    }
                                 }
                             }
                         },
@@ -238,15 +259,31 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
     }
 
     fn draw(&self, bounds: Rectangle, _cursor: Cursor,) -> Vec<canvas::Geometry> {
-        
+        // We cant assign to ourselves, but if the bound doesn't match, then we need to maek a new griduiinfo
+        let (canv_w, canv_h) = (bounds.size().width, bounds.size().height);
+        let min_size = match canv_w < canv_h { 
+            true => canv_w,
+            false  => canv_h,
+        }; 
+        let uncached_frame_grid_info = if min_size != self.grid_info.min_size {
+            Some(GridUIInfo::new(&bounds,self.dim))
+        } else {
+            None
+        };
+
+        let frame_grid_info = match &uncached_frame_grid_info {
+            Some(g) => &g,
+            None => &self.grid_info,
+        };
+
         let grid = self.grid_cache.draw(bounds.size(), |frame| {
-            let dark_bg = Path::rectangle(Point::new(0.0,0.0), Size::new(self.grid_info.min_size,self.grid_info.min_size));
+            let dark_bg = Path::rectangle(Point::new(0.0,0.0), Size::new(frame_grid_info.square_width * self.dim as f32,frame_grid_info.square_width * self.dim as f32));
             frame.fill(&dark_bg, Color::BLACK);
-            for sq in &self.grid_info.frame_square_infos {
+            for sq in &frame_grid_info.frame_square_infos {
                 if let puzzle_backend::SquareContents::TextContent(_s,m) = &self.backend.borrow().at(sq.x, sq.y).content {
-                    let sq_path = Path::rectangle(sq.content_top_left_corner,Size::new(self.grid_info.content_width,self.grid_info.content_width));
+                    let sq_path = Path::rectangle(sq.content_top_left_corner,Size::new(frame_grid_info.content_width,frame_grid_info.content_width));
                     let color = match m {
-                        Some(puzzle_backend::SquareModifier::Shading) => Color::from_rgba(0.8, 0.8, 0.8, 1.0),
+                        Some(puzzle_backend::SquareModifier::Shading) => Color::from_rgba(0.7, 0.7, 0.7, 1.0),
                         _ => Color::WHITE,
                     };
                     frame.fill(&sq_path, color);
@@ -255,12 +292,12 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
         });
 
         let labels = self.label_cache.draw(bounds.size(), |frame| {
-            for sq in &self.grid_info.frame_square_infos {
+            for sq in &frame_grid_info.frame_square_infos {
                 if let Some(l) = self.backend.borrow().at(sq.x,sq.y).label {
                     let text = Text {
                         color: Color::BLACK,
                         position: sq.content_top_left_corner,
-                        size: self.grid_info.label_size,
+                        size: frame_grid_info.label_size,
                         content: l.to_string(),
                         ..Text::default()
                     };
@@ -270,12 +307,12 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
         });
 
         let content = self.content_cache.draw(bounds.size(), |frame| {
-            for sq in &self.grid_info.frame_square_infos {
+            for sq in &frame_grid_info.frame_square_infos {
                 if let puzzle_backend::SquareContents::TextContent(s,_m) = &self.backend.borrow().at(sq.x,sq.y).content {
                     let num_chars = s.len();
                     let sq_text_size = match num_chars {
-                        1 => self.grid_info.content_width,
-                        _ => 1.2 * self.grid_info.content_width / num_chars as f32,
+                        1 => frame_grid_info.content_width,
+                        _ => 1.2 * frame_grid_info.content_width / num_chars as f32,
                     };
 
                     let text = Text {
@@ -295,12 +332,12 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
         let modifiers = self.modifier_cache.draw(bounds.size(), |frame| {
             let stroke = Stroke {
                 color: Color::BLACK,
-                width: self.grid_info.content_width * 0.03,
+                width: frame_grid_info.content_width * 0.03,
                 ..Default::default()
             };
-            for sq in &self.grid_info.frame_square_infos {
+            for sq in &frame_grid_info.frame_square_infos {
                 if let puzzle_backend::SquareContents::TextContent(_s,Some(puzzle_backend::SquareModifier::Circle)) = &self.backend.borrow().at(sq.x,sq.y).content {
-                    frame.stroke(&Path::circle(sq.center, 0.92 * self.grid_info.content_width / 2.0),stroke);
+                    frame.stroke(&Path::circle(sq.center, 0.92 * frame_grid_info.content_width / 2.0),stroke);
                 }
             }
         });
@@ -308,10 +345,10 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
         let highlighter = self.highlighter_cache.draw(bounds.size(), |frame| {
             match self.selected_square {
                 None => {
-                    if let Some((sx,sy)) = project_cursor_into_square(&self.cursor_pos,&self.grid_info.square_width, &self.dim) {
+                    if let Some((sx,sy)) = project_cursor_into_square(&self.cursor_pos,&frame_grid_info.square_width, &self.dim) {
                         let r_path = Path::rectangle(
-                                self.grid_info.frame_square_infos[sx as usize * self.dim as usize + sy as usize].content_top_left_corner,
-                                Size::new(self.grid_info.content_width,self.grid_info.content_width)
+                                frame_grid_info.frame_square_infos[sx as usize * self.dim as usize + sy as usize].content_top_left_corner,
+                                Size::new(frame_grid_info.content_width,frame_grid_info.content_width)
                             );
                         let r_c = Color::from_rgba(0.0,0.0,1.0,0.2);
                         frame.fill(&r_path,r_c);
@@ -320,8 +357,8 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                 Some((hx,hy)) => {
                     // Fill Selected with green
                     let r_path = Path::rectangle(
-                        self.grid_info.frame_square_infos[hx as usize * self.dim as usize + hy as usize].content_top_left_corner,
-                        Size::new(self.grid_info.content_width,self.grid_info.content_width)
+                        frame_grid_info.frame_square_infos[hx as usize * self.dim as usize + hy as usize].content_top_left_corner,
+                        Size::new(frame_grid_info.content_width,frame_grid_info.content_width)
                     );
                     let r_c = Color::from_rgba(0.0,1.0,0.0,0.5);
                     frame.fill(&r_path,r_c);
@@ -357,8 +394,8 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             for sq_index in v {
                                 let sq = &self.backend.borrow().squares[sq_index];
                                 let r_path = Path::rectangle(
-                                    self.grid_info.frame_square_infos[(sq.x * self.dim + sq.y) as usize].content_top_left_corner,
-                                    Size::new(self.grid_info.content_width,self.grid_info.content_width));
+                                    frame_grid_info.frame_square_infos[(sq.x * self.dim + sq.y) as usize].content_top_left_corner,
+                                    Size::new(frame_grid_info.content_width,frame_grid_info.content_width));
                                 let r_c = Color::from_rgba(1.0,1.0,0.0,0.3);
                                 frame.fill(&r_path,r_c);
                             }
