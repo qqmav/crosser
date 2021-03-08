@@ -227,15 +227,10 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                         },
                                     };
 
-                                    match prev {
-                                        Some(s) => {
-                                            let prev_sq = &self.backend.borrow().squares[s];
-                                            self.selected_square = Some((prev_sq.x,prev_sq.y));
-                                        },
-                                        None => {
-                                            self.selected_square = None;
-                                        }
-                                    }
+                                    if let Some(s) = prev {
+                                        let prev_sq = &self.backend.borrow().squares[s];
+                                        self.selected_square = Some((prev_sq.x,prev_sq.y));
+                                    };
                                 }
                         },
                         iced::keyboard::KeyCode::Delete => {
@@ -328,14 +323,9 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                         self.backend.borrow().at(tx,ty).next_down
                                     },
                                 };
-                                match next {
-                                    Some(s) =>  {
-                                        let next_sq = &self.backend.borrow().squares[s];
-                                        self.selected_square = Some((next_sq.x,next_sq.y));
-                                    }
-                                    None => {
-                                        self.selected_square = None;
-                                    },
+                                if let Some(s) = next {
+                                    let next_sq = &self.backend.borrow().squares[s];
+                                    self.selected_square = Some((next_sq.x,next_sq.y));
                                 };
                                 ui_updated = true;
                             }
@@ -356,14 +346,9 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                             }
                                         };
 
-                                        match next {
-                                            Some(s) =>  {
-                                                let next_sq = &self.backend.borrow().squares[s];
-                                                self.selected_square = Some((next_sq.x,next_sq.y));
-                                            }
-                                            None => {
-                                                self.selected_square = None;
-                                            },
+                                        if let Some(s) = next {
+                                            let next_sq = &self.backend.borrow().squares[s];
+                                            self.selected_square = Some((next_sq.x,next_sq.y));
                                         };
                                     }
                                 }
