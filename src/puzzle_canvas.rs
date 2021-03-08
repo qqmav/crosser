@@ -17,6 +17,10 @@ struct GridUIInfo {
     content_width: f32,
     label_size: f32,
     frame_square_infos: Vec<SquareUIInfo>,
+    clue_start: Point,
+    clue_height: f32,
+    clue_width: f32,
+    clue_padding: f32,
 }
 
 impl GridUIInfo {
@@ -26,13 +30,22 @@ impl GridUIInfo {
             true => canv_w,
             false  => canv_h,
         };
-        let square_width = 0.85 * (min_size / dim as f32);
+        const SCALING_FACTOR: f32 = 0.85;
+        let square_width = SCALING_FACTOR * (min_size / dim as f32);
 
-        let padding_width = 0.05 * square_width;
+        const PADDING_FACTOR: f32 = 0.05;
+        let padding_width = PADDING_FACTOR * square_width;
         let content_width = square_width - padding_width;
-        let label_size = 0.30 * square_width;
 
+        const LABEL_FACTOR: f32 = 0.30;
+        let label_size = LABEL_FACTOR * square_width;
         let frame_square_infos = GridUIInfo::get_frame_square_infos(square_width, content_width, dim);
+
+        let clue_start = Point::new(0.0, SCALING_FACTOR * min_size);
+        let clue_height = (1.0 - SCALING_FACTOR) * min_size;
+        let clue_width = SCALING_FACTOR * min_size;
+        const CLUE_PADDING_FACTOR: f32 = 0.01;
+        let clue_padding = CLUE_PADDING_FACTOR * clue_height;
  
         GridUIInfo {
             min_size,
@@ -40,6 +53,10 @@ impl GridUIInfo {
             content_width,
             label_size,
             frame_square_infos,
+            clue_start,
+            clue_height,
+            clue_width,
+            clue_padding,
         }
     }
 
@@ -103,6 +120,7 @@ pub struct PuzzleCanvas {
     content_cache: canvas::Cache,
     modifier_cache: canvas::Cache,
     highlighter_cache: canvas::Cache,
+    clues_cache: canvas::Cache,
 }
 
 impl PuzzleCanvas {
@@ -123,6 +141,7 @@ impl PuzzleCanvas {
             content_cache: Default::default(),
             modifier_cache: Default::default(),
             highlighter_cache: Default::default(),
+            clues_cache: Default::default(),
         }
     }
 }
@@ -145,8 +164,12 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                 mouse::Event::CursorMoved { .. } => {
                     if let Some(position) = cursor.position_in(&bounds) {
                         self.cursor_pos = position;
-                        self.hovered_square = project_cursor_into_square(&self.cursor_pos, &self.grid_info.square_width, &self.dim);
-                        self.highlighter_cache.clear();
+                        let new_sq = project_cursor_into_square(&self.cursor_pos, &self.grid_info.square_width, &self.dim);
+                        if self.hovered_square != new_sq {
+                            self.hovered_square = new_sq;
+                            self.highlighter_cache.clear();
+                            self.clues_cache.clear();
+                        }
                     }
                 },
                 mouse::Event::ButtonPressed(mouse::Button::Left) => {
@@ -164,6 +187,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                         } else {
                             self.selected_square = self.hovered_square;
                         }
+                        self.clues_cache.clear();
                         self.highlighter_cache.clear();
                     }
                 },
@@ -201,12 +225,53 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                     ui_updated = true;
                                 }
                         },
+                        iced::keyboard::KeyCode::Up => {
+                            if let Some((tx,ty)) = self.selected_square {
+                                if ty > 0 {
+                                    self.selected_square = Some((tx,ty-1));
+                                    ui_updated = true;
+                                }
+                            }
+                        },
+                        iced::keyboard::KeyCode::Down => {
+                            if let Some((tx,ty)) = self.selected_square {
+                                if ty < self.dim - 1 {
+                                    self.selected_square = Some((tx,ty+1));
+                                    ui_updated = true;
+                                }
+                            }
+                        },
+                        iced::keyboard::KeyCode::Left => {
+                            if let Some((tx,ty)) = self.selected_square {
+                                if tx > 0 {
+                                    self.selected_square = Some((tx-1,ty));
+                                    ui_updated = true;
+                                }
+                            }
+                        },
+                        iced::keyboard::KeyCode::Right => {
+                            if let Some((tx,ty)) = self.selected_square {
+                                if tx < self.dim - 1 {
+                                    self.selected_square = Some((tx+1,ty));
+                                    ui_updated = true;
+                                }
+                            }
+                        },
+                        iced::keyboard::KeyCode::Enter => {
+                            if let Some((_tx,_ty)) = self.selected_square {
+                                self.selected_variant = match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
+                                    puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
+                                };
+                                ui_updated = true;
+                            }
+                        }
                         _ => {
                             if let Some(c) = match_keycode_to_char(&kc) {
                                 if let Some((tx,ty)) = self.selected_square {
                                     self.backend.borrow_mut().modify_sq_contents(tx,ty,c,m.shift);
                                     ui_updated = true;
-                                    if !m.control {
+                                    if !m.control  && !m.shift {
                                         // If ctrl isnt held, move to next letter.
                                         let next = match self.selected_variant {
                                             puzzle_backend::EntryVariant::Across => {
@@ -253,6 +318,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
             self.content_cache.clear();
             self.modifier_cache.clear();
             self.highlighter_cache.clear();
+            self.clues_cache.clear();
         }
 
         (event::Status::Captured, None)
@@ -405,8 +471,73 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                },
             };
         });
+
+        let clues = self.clues_cache.draw(bounds.size(), |frame| {
+            let bg_r_path = Path::rectangle(frame_grid_info.clue_start,Size::new(frame_grid_info.clue_width,frame_grid_info.clue_height));
+            let bg_r_color = Color::BLACK;
+            frame.fill(&bg_r_path,bg_r_color);
+
+            let content_size = Size::new(frame_grid_info.clue_width - 2.0 * frame_grid_info.clue_padding, 0.5 * (frame_grid_info.clue_height - 3.0 * frame_grid_info.clue_padding));
+            let across_start = Point::new(frame_grid_info.clue_start.x + frame_grid_info.clue_padding, frame_grid_info.clue_start.y + frame_grid_info.clue_padding);
+            let down_start = Point::new(frame_grid_info.clue_start.x + frame_grid_info.clue_padding, frame_grid_info.clue_start.y + 2.0 * frame_grid_info.clue_padding + content_size.height);
+
+            let a_r_path = Path::rectangle(across_start, content_size);
+            let d_r_path = Path::rectangle(down_start, content_size);
+
+            frame.fill(&a_r_path,Color::WHITE);
+            frame.fill(&d_r_path,Color::WHITE);
+
+            let (a_c,d_c) = match self.selected_square {
+                Some((sx,sy)) => {
+                    match self.selected_variant {
+                        puzzle_backend::EntryVariant::Across => (Color::from_rgba(1.0, 1.0, 0.0, 0.3),Color::from_rgba(0.0, 0.0, 1.0, 0.2)),
+                        puzzle_backend::EntryVariant::Down => (Color::from_rgba(0.0, 0.0, 1.0, 0.2),Color::from_rgba(1.0, 1.0, 0.0, 0.3)),
+                    }
+                },
+                None => {
+                    (Color::from_rgba(0.0, 0.0, 1.0, 0.2),Color::from_rgba(0.0, 0.0, 1.0, 0.2))
+                },
+            };
+
+            frame.fill(&a_r_path,a_c);
+            frame.fill(&d_r_path,d_c);
+
+            let (a_s,d_s) = match self.selected_square {
+                Some((sx,sy)) => {
+                    self.backend.borrow().get_square_clue_texts(sx,sy)
+                },
+                None => {
+                    match self.hovered_square {
+                        Some((hx,hy)) => {
+                            self.backend.borrow().get_square_clue_texts(hx,hy)
+                        },
+                        None => {
+                            ("".to_string(),"".to_string())
+                        },
+                    }
+                },
+            };
+
+            let a_text = Text {
+                color: Color::BLACK,
+                position: across_start,
+                size: content_size.height,
+                content: a_s,
+                ..Text::default()
+            };
+            frame.fill_text(a_text);
+
+            let d_text = Text {
+                color: Color::BLACK,
+                position: down_start,
+                size: content_size.height,
+                content: d_s,
+                ..Text::default()
+            };
+            frame.fill_text(d_text);
+        });
         
-        vec![grid,labels,content,modifiers,highlighter]
+        vec![grid,labels,content,modifiers,highlighter,clues]
     }
 }
 

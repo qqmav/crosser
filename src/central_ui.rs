@@ -40,9 +40,6 @@ impl Sandbox for CrosserUI {
             .width(Length::Fill)
             .height(Length::Fill)
         )
-        .push(
-            Text::new(String::from("test widget"))
-        )
         .into()
     }
 

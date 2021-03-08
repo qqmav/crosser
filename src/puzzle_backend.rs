@@ -363,13 +363,44 @@ impl Puzzle {
         (y * self.dim as u32 + x) as usize
     }
 
+    pub fn get_square_clue_texts(&self, x: u32, y: u32) -> (String,String) {
+        let sq = self.at(x,y);
+        let across = if let Some(a_entry) = sq.across_entry {
+            let a_list_pos = self.across_entries.iter().position(|x| x.label == a_entry).unwrap();
+            let clue_t = self.get_clue_string(&self.across_entries[a_list_pos].member_indices);
+            let full_t = a_entry.to_string() + "A: " + &clue_t;
+            full_t
+        } else {
+            "".to_string()
+        };
+
+        let down = if let Some(d_entry) = sq.down_entry {
+            let d_list_pos = self.down_entries.iter().position(|x| x.label == d_entry).unwrap();
+            let clue_t = self.get_clue_string(&self.down_entries[d_list_pos].member_indices);
+            let full_t = d_entry.to_string() + "D: " + &clue_t;
+            full_t
+        } else {
+            "".to_string()
+        };
+
+        (across,down)
+    }
+
     fn get_clue_string(&self, indices: &Vec<usize>) -> String {
         let mut s = String::new();
         for index in indices { 
             if let SquareContents::TextContent(sq_content,_) = &self.squares[*index].content {
                 match sq_content.as_str() {
-                    "" => s.push('_'),
-                    _ => s.push_str(sq_content),
+                    "" => s.push('-'),
+                    _ => {
+                        if sq_content.len() > 1 {
+                            s.push('(');
+                            s.push_str(sq_content);
+                            s.push(')');
+                        } else {
+                            s.push_str(sq_content);
+                        }
+                    },
                 };
             };
         };
