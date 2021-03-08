@@ -16,8 +16,10 @@ pub struct Square {
     pub y: u32,
     pub across_entry: Option<u32>,
     pub next_across: Option<usize>,
+    pub prev_across: Option<usize>,
     pub down_entry: Option<u32>,
-    pub next_down: Option<usize>
+    pub next_down: Option<usize>,
+    pub prev_down: Option<usize>,
 }
 
 impl Square {
@@ -29,8 +31,10 @@ impl Square {
             y,
             across_entry: None,
             next_across: None,
+            prev_across: None,
             down_entry: None,
             next_down: None,
+            prev_down: None,
         }
     }
 }
@@ -262,6 +266,11 @@ impl Puzzle {
                                 self.squares[entries[e_index]].next_across = Some(entries[e_index+1]);
                             }
                             self.squares[*entries.last().unwrap()].next_across = None;
+                            // assign prev squares
+                            for e_index in 1..entries.len() {
+                                self.squares[entries[e_index]].prev_across = Some(entries[e_index - 1]);
+                            }
+                            self.squares[entries[0]].prev_across = None;
 
                             // Push to across entries list
                             let e = PuzzleEntry {
@@ -287,6 +296,11 @@ impl Puzzle {
                     self.squares[entries[e_index]].next_across = Some(entries[e_index+1]);
                 }
                 self.squares[*entries.last().unwrap()].next_across = None;
+                // assign prev squares
+                for e_index in 1..entries.len() {
+                    self.squares[entries[e_index]].prev_across = Some(entries[e_index - 1]);
+                }
+                self.squares[entries[0]].prev_across = None;
 
                 // Push to across entries list
                 let e = PuzzleEntry {
@@ -319,6 +333,11 @@ impl Puzzle {
                                 self.squares[entries[e_index]].next_down = Some(entries[e_index+1]);
                             }
                             self.squares[*entries.last().unwrap()].next_down = None;
+                            // assign prev squares
+                            for e_index in 1..entries.len() {
+                                self.squares[entries[e_index]].prev_down = Some(entries[e_index - 1]);
+                            }
+                            self.squares[entries[0]].prev_down = None;
 
                             // Push to entries list
                             let e = PuzzleEntry {
@@ -335,8 +354,7 @@ impl Puzzle {
                         entries.push(index);
                     }
                 }
-            }
-;
+            };
 
             if entries.len() > 0 {
                 // assign next squares
@@ -344,6 +362,11 @@ impl Puzzle {
                     self.squares[entries[e_index]].next_down = Some(entries[e_index+1]);
                 }
                 self.squares[*entries.last().unwrap()].next_down = None;
+                // assign prev squares
+                for e_index in 1..entries.len() {
+                    self.squares[entries[e_index]].prev_down = Some(entries[e_index - 1]);
+                }
+                self.squares[entries[0]].prev_down = None;
 
                 // Push to entries list
                 let e = PuzzleEntry {

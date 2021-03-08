@@ -217,6 +217,25 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 if let Some((tx,ty)) = self.selected_square {
                                     self.backend.borrow_mut().clear_sq_contents(tx,ty);
                                     ui_updated = true;
+
+                                    let prev = match self.selected_variant {
+                                        puzzle_backend::EntryVariant::Across => {
+                                            self.backend.borrow().at(tx,ty).prev_across
+                                        },
+                                        puzzle_backend::EntryVariant::Down => {
+                                            self.backend.borrow().at(tx,ty).prev_down
+                                        },
+                                    };
+
+                                    match prev {
+                                        Some(s) => {
+                                            let prev_sq = &self.backend.borrow().squares[s];
+                                            self.selected_square = Some((prev_sq.x,prev_sq.y));
+                                        },
+                                        None => {
+                                            self.selected_square = None;
+                                        }
+                                    }
                                 }
                         },
                         iced::keyboard::KeyCode::Delete => {
@@ -543,7 +562,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
             frame.fill(&d_r_path,Color::WHITE);
 
             let (a_c,d_c) = match self.selected_square {
-                Some((sx,sy)) => {
+                Some((_sx,_sy)) => {
                     match self.selected_variant {
                         puzzle_backend::EntryVariant::Across => (Color::from_rgba(1.0, 1.0, 0.0, 0.3),Color::from_rgba(0.0, 0.0, 1.0, 0.2)),
                         puzzle_backend::EntryVariant::Down => (Color::from_rgba(0.0, 0.0, 1.0, 0.2),Color::from_rgba(1.0, 1.0, 0.0, 0.3)),
