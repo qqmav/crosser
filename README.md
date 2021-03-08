@@ -1,5 +1,5 @@
 # crosser
-A crossword puzzle templating application that should not be used by anyone at all
+A crossword puzzle templating application that should not be used by anyone at all. Download and use at your own risk.
 
 # Click to select a square
 # Right click to make a square a blocker
