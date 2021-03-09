@@ -311,11 +311,55 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 };
                             }
                         },
-                        iced::keyboard::KeyCode::Enter => {
-                            if let Some((_tx,_ty)) = self.selected_square {
-                                self.selected_variant = match self.selected_variant {
-                                    puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
-                                    puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
+                        iced::keyboard::KeyCode::Enter  | iced::keyboard::KeyCode::Tab => {
+                            if let Some((tx,ty)) = self.selected_square {
+                                let next_clue_index = match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => {
+                                        let a_entries = &self.backend.borrow().across_entries;
+                                        let a_index = a_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).across_entry.unwrap()).unwrap();
+                                        if !m.shift {
+                                            if a_index < a_entries.len() - 1 {
+                                                Some(a_index + 1)
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            if a_index > 0 {
+                                                Some(a_index - 1)
+                                            } else {
+                                                None
+                                            }
+                                        }
+                                    },
+                                    puzzle_backend::EntryVariant::Down => {
+                                        let d_entries = &self.backend.borrow().down_entries;
+                                        let d_index = d_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).down_entry.unwrap()).unwrap();
+                                        if !m.shift {
+                                            if d_index < d_entries.len() - 1 {
+                                                Some(d_index + 1)
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            if d_index > 0 {
+                                                Some(d_index - 1)
+                                            } else {
+                                                None
+                                            }
+                                        }
+                                    },
+                                };
+                                if let Some(i) = next_clue_index {
+                                    match self.selected_variant {
+                                        puzzle_backend::EntryVariant::Across => {
+                                            let sq = &self.backend.borrow().squares[self.backend.borrow().across_entries[i].member_indices[0]];
+                                            self.selected_square = Some((sq.x,sq.y));
+                                        },
+                                        puzzle_backend::EntryVariant::Down => {
+                                            let sq = &self.backend.borrow().squares[self.backend.borrow().down_entries[i].member_indices[0]];
+                                            self.selected_square = Some((sq.x,sq.y));
+                                        }
+                                    };
                                 };
                                 ui_updated = true;
                             }
@@ -510,31 +554,17 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                     let r_c = Color::from_rgba(0.0,1.0,0.0,0.5);
                     frame.fill(&r_path,r_c);
                     // Fill rest of clue with yellow
-                    let entries: Option<Vec<usize>> = match self.selected_variant {
-                        puzzle_backend::EntryVariant::Across => {
-                            if let Some(selected_clue) = self.backend.borrow().at(hx,hy).across_entry {
-                                let across_entries = &self.backend.borrow().across_entries;
-                                if let Some(list_index) = across_entries.iter().position(|x| x.label == selected_clue) {
-                                    Some(across_entries[list_index].member_indices.clone())
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
+                    let entries: Option<Vec<usize>> = if let (Some(a),Some(d)) = self.backend.borrow().get_clue_entries(hx,hy) {
+                        match self.selected_variant {
+                            puzzle_backend::EntryVariant::Across => {
+                                Some(a.member_indices.clone())
+                            },
+                            puzzle_backend::EntryVariant::Down => {
+                                Some(d.member_indices.clone())
+                            }, 
                         }
-                        puzzle_backend::EntryVariant::Down => {
-                            if let Some(selected_clue) = self.backend.borrow().at(hx,hy).down_entry {
-                                let down_entries = &self.backend.borrow().down_entries;
-                                if let Some(list_index) = down_entries.iter().position(|x| x.label == selected_clue) {
-                                    Some(down_entries[list_index].member_indices.clone())
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            } 
-                        }
+                    } else {
+                        None
                     };
                     match entries {
                         Some(v) => {

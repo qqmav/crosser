@@ -380,24 +380,47 @@ impl Puzzle {
         (y * self.dim as u32 + x) as usize
     }
 
-    pub fn get_square_clue_texts(&self, x: u32, y: u32) -> (String,String) {
+    pub fn get_clue_entries(&self, x: u32, y: u32) -> (Option<&PuzzleEntry>,Option<&PuzzleEntry>) {
         let sq = self.at(x,y);
-        let across = if let Some(a_entry) = sq.across_entry {
-            let a_list_pos = self.across_entries.iter().position(|x| x.label == a_entry).unwrap();
-            let clue_t = self.get_clue_string(&self.across_entries[a_list_pos].member_indices);
-            let full_t = a_entry.to_string() + "A: " + &clue_t;
-            full_t
-        } else {
-            "".to_string()
-        };
+        match &sq.content {
+            SquareContents::Blocker => {
+                (None,None)
+            },
+            SquareContents::TextContent(_s,_m) => {
+                let across = if let Some(a_entry) = sq.across_entry {
+                    self.across_entries.iter().find(|x| x.label == a_entry)
+                } else {
+                    None
+                };
+                let down = if let Some(d_entry) = sq.down_entry {
+                    self.down_entries.iter().find(|x| x.label == d_entry)
+                } else {
+                    None
+                };
+                (across,down)
+            }
+        }
+    }
 
-        let down = if let Some(d_entry) = sq.down_entry {
-            let d_list_pos = self.down_entries.iter().position(|x| x.label == d_entry).unwrap();
-            let clue_t = self.get_clue_string(&self.down_entries[d_list_pos].member_indices);
-            let full_t = d_entry.to_string() + "D: " + &clue_t;
-            full_t
-        } else {
-            "".to_string()
+    pub fn get_square_clue_texts(&self, x: u32, y: u32) -> (String,String) {
+        let (a,d) = self.get_clue_entries(x,y);
+        let across = match a {
+            Some(entry) => {
+                let clue_t = self.get_clue_string(&entry.member_indices);
+                entry.label.to_string() + "A: " + &clue_t
+            },
+            None => {
+                "".to_string()
+            },
+        };
+        let down = match d {
+            Some(entry) => {
+                let clue_t = self.get_clue_string(&entry.member_indices);
+                entry.label.to_string() + "D: " + &clue_t
+            },
+            None => {
+                "".to_string()
+            },
         };
 
         (across,down)
