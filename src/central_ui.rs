@@ -1,4 +1,4 @@
-use iced::{Align, Canvas, Element, Length, Row, Sandbox};
+use iced::{Align, Canvas, Element, Length, Row, Sandbox, Text};
 use crate::puzzle_backend;
 use crate::puzzle_canvas;
 
@@ -12,13 +12,14 @@ pub struct CrosserUI {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
+    UpdateResponseTexts,
 }
 
 impl Sandbox for CrosserUI {
     type Message = Message; 
 
     fn new() -> Self {
-        let t = puzzle_backend::PuzzleType::Weekday;
+        let t = puzzle_backend::PuzzleType::Mini;
         let p = Rc::new(RefCell::new(puzzle_backend::Puzzle::new(t)));
         let u = puzzle_canvas::PuzzleCanvas::new(p.clone());
         CrosserUI { 
@@ -39,6 +40,9 @@ impl Sandbox for CrosserUI {
             Canvas::new(&mut self.puzzle_ui)
             .width(Length::Fill)
             .height(Length::Fill)
+        )
+        .push(
+            Text::new("Test")
         )
         .into()
     }

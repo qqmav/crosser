@@ -158,6 +158,8 @@ fn project_cursor_into_square(cursor_pos: &Point, sq_width: &f32, grid_dim: &u32
 impl<Message> canvas::Program<Message> for PuzzleCanvas {
     fn update(&mut self, event: Event, bounds: Rectangle, cursor: Cursor) -> (event::Status, Option<Message>) {
         let mut ui_updated = self.grid_info.update(&bounds,self.dim);
+        let mut e = event::Status::Captured;
+        let mut m: Option<Message> = None;
 
         match event {
             Event::Mouse(mouse_event) => match mouse_event {
@@ -170,6 +172,8 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             self.highlighter_cache.clear();
                             self.clues_cache.clear();
                         }
+                    } else {
+                        e = event::Status::Ignored;
                     }
                 },
                 mouse::Event::ButtonPressed(mouse::Button::Left) => {
@@ -179,16 +183,28 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             ui_updated = did_modify_sq;
                         }
                     } else {
-                        if self.hovered_square == self.selected_square {
-                            self.selected_variant = match self.selected_variant {
-                                puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
-                                puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
-                            }
+                        if self.hovered_square == None {
+                            e = event::Status::Ignored;
                         } else {
-                            self.selected_square = self.hovered_square;
-                        }
-                        self.clues_cache.clear();
-                        self.highlighter_cache.clear();
+                            if self.hovered_square == self.selected_square {
+                                self.selected_variant = match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
+                                    puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
+                                }
+                            } else {
+                                // Can unwrap because we have already handled None case.
+                                let (hx,hy) = self.hovered_square.unwrap();
+                                match self.backend.borrow().at(hx,hy).content {
+                                    puzzle_backend::SquareContents::TextContent(_,_) => {
+                                        self.selected_square = self.hovered_square;
+                                        ui_updated = true;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            self.clues_cache.clear();
+                            self.highlighter_cache.clear();
+                        }   
                     }
                 },
                 mouse::Event::ButtonPressed(mouse::Button::Right) => {
@@ -202,6 +218,8 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             if let Some((tx,ty)) = self.hovered_square {
                                 self.backend.borrow_mut().cycle_blocker(tx,ty,false);
                                 ui_updated = true;
+                            } else {
+                                e = event::Status::Ignored;
                             }
                         },
                     }
@@ -222,30 +240,30 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                             self.rctrl_held = true;
                         },
                         iced::keyboard::KeyCode::Backspace => {
-                                if let Some((tx,ty)) = self.selected_square {
-                                    self.backend.borrow_mut().clear_sq_contents(tx,ty);
-                                    ui_updated = true;
+                            if let Some((tx,ty)) = self.selected_square {
+                                self.backend.borrow_mut().clear_sq_contents(tx,ty);
+                                ui_updated = true;
 
-                                    let prev = match self.selected_variant {
-                                        puzzle_backend::EntryVariant::Across => {
-                                            self.backend.borrow().at(tx,ty).prev_across
-                                        },
-                                        puzzle_backend::EntryVariant::Down => {
-                                            self.backend.borrow().at(tx,ty).prev_down
-                                        },
-                                    };
+                                let prev = match self.selected_variant {
+                                    puzzle_backend::EntryVariant::Across => {
+                                        self.backend.borrow().at(tx,ty).prev_across
+                                    },
+                                    puzzle_backend::EntryVariant::Down => {
+                                        self.backend.borrow().at(tx,ty).prev_down
+                                    },
+                                };
 
-                                    if let Some(s) = prev {
-                                        let prev_sq = &self.backend.borrow().squares[s];
-                                        self.selected_square = Some((prev_sq.x,prev_sq.y));
-                                    };
-                                }
+                                if let Some(s) = prev {
+                                    let prev_sq = &self.backend.borrow().squares[s];
+                                    self.selected_square = Some((prev_sq.x,prev_sq.y));
+                                };
+                            }
                         },
                         iced::keyboard::KeyCode::Delete => {
-                                if let Some((tx,ty)) = self.selected_square {
-                                    self.backend.borrow_mut().clear_sq_contents(tx,ty);
-                                    ui_updated = true;
-                                }
+                            if let Some((tx,ty)) = self.selected_square {
+                                self.backend.borrow_mut().clear_sq_contents(tx,ty);
+                                ui_updated = true;
+                            }
                         },
                         iced::keyboard::KeyCode::Up => {
                             if let Some((tx,ty)) = self.selected_square {
@@ -311,53 +329,68 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                 };
                             }
                         },
-                        iced::keyboard::KeyCode::Enter  | iced::keyboard::KeyCode::Tab => {
+                        iced::keyboard::KeyCode::Tab => {
                             if let Some((tx,ty)) = self.selected_square {
-                                let next_clue_index = match self.selected_variant {
+                                let (next_var,next_clue_index) = match self.selected_variant {
                                     puzzle_backend::EntryVariant::Across => {
                                         let a_entries = &self.backend.borrow().across_entries;
-                                        let a_index = a_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).across_entry.unwrap()).unwrap();
-                                        if !m.shift {
-                                            if a_index < a_entries.len() - 1 {
-                                                Some(a_index + 1)
+                                        // Can unwrap because we have only allowed text squares to be selected.
+                                        let a_index = a_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).across_entry.unwrap());
+                                        if let Some(a) = a_index {
+                                            if !m.shift {
+                                                if a < a_entries.len() - 1 {
+                                                    (Some(puzzle_backend::EntryVariant::Across), Some(a + 1))
+                                                } else {
+                                                    self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                                    (Some(puzzle_backend::EntryVariant::Down),Some(0))
+                                                }
                                             } else {
-                                                None
+                                                if a > 0 {
+                                                    (Some(puzzle_backend::EntryVariant::Across),Some(a - 1))
+                                                } else {
+                                                    self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                                    (Some(puzzle_backend::EntryVariant::Down),Some(self.backend.borrow().down_entries.len() - 1))
+                                                }
                                             }
                                         } else {
-                                            if a_index > 0 {
-                                                Some(a_index - 1)
-                                            } else {
-                                                None
-                                            }
+                                            (None,None)
                                         }
                                     },
                                     puzzle_backend::EntryVariant::Down => {
                                         let d_entries = &self.backend.borrow().down_entries;
-                                        let d_index = d_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).down_entry.unwrap()).unwrap();
-                                        if !m.shift {
-                                            if d_index < d_entries.len() - 1 {
-                                                Some(d_index + 1)
+                                        let d_index = d_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).down_entry.unwrap());
+                                        if let Some(d) = d_index {
+                                            if !m.shift {
+                                                if d < d_entries.len() - 1 {
+                                                    (Some(puzzle_backend::EntryVariant::Down),Some(d + 1))
+                                                } else {
+                                                    self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                                    (Some(puzzle_backend::EntryVariant::Across),Some(0))
+                                                }
                                             } else {
-                                                None
-                                            }
+                                                if d > 0 {
+                                                    (Some(puzzle_backend::EntryVariant::Down),Some(d - 1))
+                                                } else {
+                                                    self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                                    (Some(puzzle_backend::EntryVariant::Across),Some(self.backend.borrow().across_entries.len()-1))
+                                                }
+                                            } 
                                         } else {
-                                            if d_index > 0 {
-                                                Some(d_index - 1)
-                                            } else {
-                                                None
-                                            }
+                                            (None,None)
                                         }
                                     },
                                 };
                                 if let Some(i) = next_clue_index {
-                                    match self.selected_variant {
-                                        puzzle_backend::EntryVariant::Across => {
-                                            let sq = &self.backend.borrow().squares[self.backend.borrow().across_entries[i].member_indices[0]];
-                                            self.selected_square = Some((sq.x,sq.y));
-                                        },
-                                        puzzle_backend::EntryVariant::Down => {
-                                            let sq = &self.backend.borrow().squares[self.backend.borrow().down_entries[i].member_indices[0]];
-                                            self.selected_square = Some((sq.x,sq.y));
+                                    if let Some(v) = next_var {
+                                        match v {
+                                            puzzle_backend::EntryVariant::Across => {
+                                                let sq = &self.backend.borrow().squares[self.backend.borrow().across_entries[i].member_indices[0]];
+                                                self.selected_square = Some((sq.x,sq.y));
+                                            },
+                                            puzzle_backend::EntryVariant::Down => {
+                                                let sq = &self.backend.borrow().squares[self.backend.borrow().down_entries[i].member_indices[0]];
+                                                self.selected_square = Some((sq.x,sq.y));
+                                            }
                                         }
                                     };
                                 };
@@ -404,6 +437,8 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                                         };
                                     }
                                 }
+                            } else {
+                                e = event::Status::Ignored;
                             }
                         },
                     };
@@ -416,7 +451,9 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
                         iced::keyboard::KeyCode::RControl => {
                             self.rctrl_held = false;
                         },
-                        _ => (),
+                        _ => {
+                            e = event::Status::Ignored;
+                        },
                     };
                 },
                 _ => (),
@@ -432,7 +469,7 @@ impl<Message> canvas::Program<Message> for PuzzleCanvas {
             self.clues_cache.clear();
         }
 
-        (event::Status::Captured, None)
+        (e, m)
     }
 
     fn draw(&self, bounds: Rectangle, _cursor: Cursor,) -> Vec<canvas::Geometry> {
