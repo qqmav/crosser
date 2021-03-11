@@ -1,7 +1,8 @@
 mod central_ui;
+mod clue_ui;
+mod controls_ui;
 mod puzzle_backend;
 mod puzzle_canvas;
-mod clue_ui;
 
 use iced::{Application, Settings};
 

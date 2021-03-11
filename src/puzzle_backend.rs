@@ -57,6 +57,7 @@ pub struct PuzzleEntry {
     pub clue: String,
 }
 
+#[derive(Clone, Debug)]
 pub enum PuzzleType {
     Mini,
     Weekday,
