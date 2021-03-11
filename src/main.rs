@@ -3,6 +3,7 @@ mod clue_ui;
 mod controls_ui;
 mod puzzle_backend;
 mod puzzle_canvas;
+mod puzzle_file_io;
 
 use iced::{Application, Settings};
 

@@ -149,7 +149,12 @@ impl PuzzleCanvas {
     }
 
     pub fn set_ignore_keystrokes(&mut self, val: bool) {
+        self.selected_square = None;
         self.ignore_keystrokes = val;
+    }
+
+    pub fn set_no_selected_square(&mut self) {
+        self.selected_square = None;
     }
 }
 
@@ -168,72 +173,76 @@ impl canvas::Program<Message> for PuzzleCanvas {
         let mut ui_updated = self.grid_info.update(&bounds,self.dim);
         let mut e = event::Status::Captured;
         let mut m: Option<Message> = None;
-
         match event {
-            Event::Mouse(mouse_event) => match mouse_event {
-                mouse::Event::CursorMoved { .. } => {
-                    if let Some(position) = cursor.position_in(&bounds) {
-                        self.cursor_pos = position;
-                        let new_sq = project_cursor_into_square(&self.cursor_pos, &self.grid_info.square_width, &self.dim);
-                        if self.hovered_square != new_sq {
-                            self.hovered_square = new_sq;
-                            self.highlighter_cache.clear();
-                            self.clues_cache.clear();
-                        }
-                    } else {
-                        e = event::Status::Ignored;
-                    }
-                },
-                mouse::Event::ButtonPressed(mouse::Button::Left) => {
-                    if self.lctrl_held || self.rctrl_held {
-                        if let Some((tx,ty)) = self.hovered_square {
-                            let did_modify_sq = self.backend.borrow_mut().cycle_modifier(tx,ty);
-                            ui_updated = did_modify_sq;
-                        }
-                    } else {
-                        if self.hovered_square == None {
-                            e = event::Status::Ignored;
+            Event::Mouse(mouse_event) => {
+                if cursor.position_in(&bounds).is_none() {
+                    return (event::Status::Ignored,None)
+                }
+                match mouse_event {
+                    mouse::Event::CursorMoved { .. } => {
+                        if let Some(position) = cursor.position_in(&bounds) {
+                            self.cursor_pos = position;
+                            let new_sq = project_cursor_into_square(&self.cursor_pos, &self.grid_info.square_width, &self.dim);
+                            if self.hovered_square != new_sq {
+                                self.hovered_square = new_sq;
+                                self.highlighter_cache.clear();
+                                self.clues_cache.clear();
+                            }
                         } else {
-                            if self.hovered_square == self.selected_square {
-                                self.selected_variant = match self.selected_variant {
-                                    puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
-                                    puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
-                                }
-                            } else {
-                                // Can unwrap because we have already handled None case.
-                                let (hx,hy) = self.hovered_square.unwrap();
-                                match self.backend.borrow().at(hx,hy).content {
-                                    puzzle_backend::SquareContents::TextContent(_,_) => {
-                                        self.selected_square = self.hovered_square;
-                                        ui_updated = true;
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            self.clues_cache.clear();
-                            self.highlighter_cache.clear();
-                        }   
-                    }
-                },
-                mouse::Event::ButtonPressed(mouse::Button::Right) => {
-                    ui_updated = true;
-                    match self.selected_square {
-                        Some((_sx,_sy)) => {
-                            self.selected_square = None;
-                            ui_updated = true;
-                        },
-                        None => {
+                            e = event::Status::Ignored;
+                        }
+                    },
+                    mouse::Event::ButtonPressed(mouse::Button::Left) => {
+                        if self.lctrl_held || self.rctrl_held {
                             if let Some((tx,ty)) = self.hovered_square {
-                                self.backend.borrow_mut().cycle_blocker(tx,ty,false);
-                                ui_updated = true;
-                                m = Some(Message::CluesUpdated);
-                            } else {
-                                e = event::Status::Ignored;
+                                let did_modify_sq = self.backend.borrow_mut().cycle_modifier(tx,ty);
+                                ui_updated = did_modify_sq;
                             }
-                        },
-                    }
-                },
-                _ => ()
+                        } else {
+                            if self.hovered_square == None {
+                                e = event::Status::Ignored;
+                            } else {
+                                if self.hovered_square == self.selected_square {
+                                    self.selected_variant = match self.selected_variant {
+                                        puzzle_backend::EntryVariant::Across => puzzle_backend::EntryVariant::Down,
+                                        puzzle_backend::EntryVariant::Down => puzzle_backend::EntryVariant::Across,
+                                    }
+                                } else {
+                                    // Can unwrap because we have already handled None case.
+                                    let (hx,hy) = self.hovered_square.unwrap();
+                                    match self.backend.borrow().at(hx,hy).content {
+                                        puzzle_backend::SquareContents::TextContent(_,_) => {
+                                            self.selected_square = self.hovered_square;
+                                            ui_updated = true;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                self.clues_cache.clear();
+                                self.highlighter_cache.clear();
+                            }   
+                        }
+                    },
+                    mouse::Event::ButtonPressed(mouse::Button::Right) => {
+                        ui_updated = true;
+                        match self.selected_square {
+                            Some((_sx,_sy)) => {
+                                self.selected_square = None;
+                                ui_updated = true;
+                            },
+                            None => {
+                                if let Some((tx,ty)) = self.hovered_square {
+                                    self.backend.borrow_mut().cycle_blocker(tx,ty,false);
+                                    ui_updated = true;
+                                    m = Some(Message::CluesUpdated);
+                                } else {
+                                    e = event::Status::Ignored;
+                                }
+                            },
+                        }
+                    },
+                    _ => ()
+                }
             }
             Event::Keyboard(keyboard_event) => {
                 if !self.ignore_keystrokes {
