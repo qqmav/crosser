@@ -17,9 +17,11 @@ pub struct Square {
     pub across_entry: Option<u32>,
     pub next_across: Option<usize>,
     pub prev_across: Option<usize>,
+    pub across_clue_text: Option<String>,
     pub down_entry: Option<u32>,
     pub next_down: Option<usize>,
     pub prev_down: Option<usize>,
+    pub down_clue_text: Option<String>,
 }
 
 impl Square {
@@ -32,14 +34,16 @@ impl Square {
             across_entry: None,
             next_across: None,
             prev_across: None,
+            across_clue_text: None,
             down_entry: None,
             next_down: None,
             prev_down: None,
+            down_clue_text: None,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug)]
 pub enum EntryVariant {
     Across,
     Down,
@@ -50,12 +54,13 @@ pub struct PuzzleEntry {
     pub label: u32,
     pub variant: EntryVariant,
     pub member_indices: Vec<usize>,
+    pub clue: String,
 }
 
 pub enum PuzzleType {
     Mini,
     Weekday,
-    WeekdayAssymetric,
+    WeekdayAsymmetric,
     Sunday,
 }
 
@@ -104,6 +109,8 @@ impl Puzzle {
                 self.squares[index].content = SquareContents::TextContent("".to_string(),None);
             },
             SquareContents::TextContent(_,_) => {
+                self.squares[index].across_clue_text = None;
+                self.squares[index].down_clue_text = None;
                 self.squares[index].content = SquareContents::Blocker;
             },
         };
@@ -265,13 +272,25 @@ impl Puzzle {
                                 self.squares[entries[e_index]].prev_across = Some(entries[e_index - 1]);
                             }
                             self.squares[entries[0]].prev_across = None;
+                            // set clue texts
+                            let text = match &self.squares[entries[0]].across_clue_text {
+                                Some(s) => { s.clone() }
+                                None => { self.squares[entries[0]].across_clue_text = Some("".to_string()); 
+                                    "".to_string()        
+                                }
+                            };
+                            for e_index in 1..entries.len() {
+                                self.squares[entries[e_index]].across_clue_text = None;
+                            }
 
                             // Push to across entries list
                             let e = PuzzleEntry {
                                 label: current_across,
                                 variant: EntryVariant::Across,
                                 member_indices: entries,
+                                clue: text,
                             };
+
                             self.across_entries.push(e);
                             entries = Vec::new();
                         }
@@ -295,12 +314,23 @@ impl Puzzle {
                     self.squares[entries[e_index]].prev_across = Some(entries[e_index - 1]);
                 }
                 self.squares[entries[0]].prev_across = None;
+                // set clue texts
+                let text = match &self.squares[entries[0]].across_clue_text {
+                    Some(s) => { s.clone() }
+                    None => { self.squares[entries[0]].across_clue_text = Some("".to_string()); 
+                        "".to_string()        
+                    }
+                };
+                for e_index in 1..entries.len() {
+                    self.squares[entries[e_index]].across_clue_text = None;
+                }
 
                 // Push to across entries list
                 let e = PuzzleEntry {
                     label: current_across,
-                    variant: EntryVariant::Down,
+                    variant: EntryVariant::Across,
                     member_indices: entries,
+                    clue: text,
                 };
                 self.across_entries.push(e);
             }
@@ -332,12 +362,23 @@ impl Puzzle {
                                 self.squares[entries[e_index]].prev_down = Some(entries[e_index - 1]);
                             }
                             self.squares[entries[0]].prev_down = None;
+                            // set clue texts
+                            let text = match &self.squares[entries[0]].down_clue_text {
+                                Some(s) => { s.clone() }
+                                None => { self.squares[entries[0]].down_clue_text = Some("".to_string()); 
+                                    "".to_string()        
+                                }
+                            };
+                            for e_index in 1..entries.len() {
+                                self.squares[entries[e_index]].down_clue_text = None;
+                            }
 
                             // Push to entries list
                             let e = PuzzleEntry {
                                 label: current_down,
-                                variant: EntryVariant::Across,
+                                variant: EntryVariant::Down,
                                 member_indices: entries,
+                                clue: text,
                             };
                             self.down_entries.push(e);
                             entries = Vec::new();
@@ -361,12 +402,23 @@ impl Puzzle {
                     self.squares[entries[e_index]].prev_down = Some(entries[e_index - 1]);
                 }
                 self.squares[entries[0]].prev_down = None;
+                // set clue texts
+                let text = match &self.squares[entries[0]].down_clue_text {
+                    Some(s) => { s.clone() }
+                    None => { self.squares[entries[0]].down_clue_text = Some("".to_string()); 
+                        "".to_string()        
+                    }
+                };
+                for e_index in 1..entries.len() {
+                    self.squares[entries[e_index]].down_clue_text = None;
+                }
 
                 // Push to entries list
                 let e = PuzzleEntry {
                     label: current_down,
-                    variant: EntryVariant::Across,
+                    variant: EntryVariant::Down,
                     member_indices: entries,
+                    clue: text,
                 };
                 self.down_entries.push(e);
             }
@@ -374,6 +426,21 @@ impl Puzzle {
 
         // Down entries won't be in increasing order, so sort them.
         self.down_entries.sort_by(|a,b| a.label.cmp(&b.label));
+    }
+
+    pub fn set_clue_text(&mut self, label: u32, variant: EntryVariant, text: String) {
+        match variant {
+            EntryVariant::Across => {
+                let entry = self.across_entries.iter_mut().find(|x| x.label == label).unwrap();
+                entry.clue = text.clone();
+                self.squares[entry.member_indices[0]].across_clue_text = Some(text);
+            },
+            EntryVariant::Down  => {
+                let entry = self.down_entries.iter_mut().find(|x| x.label == label).unwrap();
+                entry.clue = text.clone();
+                self.squares[entry.member_indices[0]].down_clue_text = Some(text);
+            },
+        }
     }
 
     fn xy_to_index(&self, x: u32, y: u32) -> usize {
@@ -404,9 +471,10 @@ impl Puzzle {
 
     pub fn get_square_clue_texts(&self, x: u32, y: u32) -> (String,String) {
         let (a,d) = self.get_clue_entries(x,y);
+
         let across = match a {
             Some(entry) => {
-                let clue_t = self.get_clue_string(&entry.member_indices);
+                let clue_t = entry.clue.clone();
                 entry.label.to_string() + "A: " + &clue_t
             },
             None => {
@@ -415,7 +483,7 @@ impl Puzzle {
         };
         let down = match d {
             Some(entry) => {
-                let clue_t = self.get_clue_string(&entry.member_indices);
+                let clue_t = entry.clue.clone();
                 entry.label.to_string() + "D: " + &clue_t
             },
             None => {
@@ -425,34 +493,13 @@ impl Puzzle {
 
         (across,down)
     }
-
-    fn get_clue_string(&self, indices: &Vec<usize>) -> String {
-        let mut s = String::new();
-        for index in indices { 
-            if let SquareContents::TextContent(sq_content,_) = &self.squares[*index].content {
-                match sq_content.as_str() {
-                    "" => s.push('-'),
-                    _ => {
-                        if sq_content.len() > 1 {
-                            s.push('(');
-                            s.push_str(sq_content);
-                            s.push(')');
-                        } else {
-                            s.push_str(sq_content);
-                        }
-                    },
-                };
-            };
-        };
-        s
-    }
 }
 
 pub fn match_puzzle_dim(p: &PuzzleType) -> usize {
     match p {
         PuzzleType::Mini => 5,
         PuzzleType::Weekday => 15,
-        PuzzleType::WeekdayAssymetric => 15,
+        PuzzleType::WeekdayAsymmetric => 15,
         PuzzleType::Sunday => 21,
     }
 }

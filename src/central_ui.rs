@@ -1,18 +1,22 @@
-use iced::{Align, Canvas, Element, Length, Row, Sandbox, Text};
+use iced::{Align, Canvas, Element, Length, Row, Sandbox};
 use crate::puzzle_backend;
 use crate::puzzle_canvas;
+use crate::clue_ui;
 
 use std::rc::Rc;
 use std::cell::RefCell;
 
 pub struct CrosserUI {
-    backend: Rc<RefCell<puzzle_backend::Puzzle>>,
     puzzle_ui: puzzle_canvas::PuzzleCanvas,
+    clues: clue_ui::CluesBrowser,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Message {
-    UpdateResponseTexts,
+    ClueEnteredModification(u32,puzzle_backend::EntryVariant),
+    ClueModified(String),
+    ClueLeftModification(u32,puzzle_backend::EntryVariant),
+    CluesUpdated,
 }
 
 impl Sandbox for CrosserUI {
@@ -22,9 +26,11 @@ impl Sandbox for CrosserUI {
         let t = puzzle_backend::PuzzleType::Mini;
         let p = Rc::new(RefCell::new(puzzle_backend::Puzzle::new(t)));
         let u = puzzle_canvas::PuzzleCanvas::new(p.clone());
+        let mut c = clue_ui::CluesBrowser::new(p.clone());
+        c.update_clues();
         CrosserUI { 
-                backend: p,
                 puzzle_ui: u,
+                clues: c,
                 }
     }
 
@@ -42,12 +48,29 @@ impl Sandbox for CrosserUI {
             .height(Length::Fill)
         )
         .push(
-            Text::new("Test")
+            self.clues.view()
         )
         .into()
     }
 
-    fn update(&mut self, _message: Message) {
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::ClueEnteredModification(l,v) => {
+                self.puzzle_ui.set_ignore_keystrokes(true);
+                self.clues.set_being_modified(l, v);
+            }
+            Message::ClueLeftModification(_l,_v) => {
+                self.puzzle_ui.set_ignore_keystrokes(false);
+                self.clues.unset_being_modified();
+            }
+            Message::ClueModified(s) => {
+                // Cache text to prevent mut issues
+                self.clues.set_clue_text(s);
+            }
+            Message::CluesUpdated => {
+                self.clues.update_clues();
+            }
+        }
     }
 }
 
