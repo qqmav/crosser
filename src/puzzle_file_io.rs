@@ -3,7 +3,7 @@ use crate::puzzle_backend;
 
 use std::{rc::Rc, cell::RefCell};
 
-pub fn write_puzzle_to_cro(puzzle: Rc<RefCell<puzzle_backend::Puzzle>>, path_str: String, save_empty_grid: bool) -> std::result::Result<(),std::io::Error> {
+pub fn write_puzzle_to_cro(puzzle: Rc<RefCell<puzzle_backend::Puzzle>>, path_str: String, save_solvable_grid: bool) -> std::result::Result<(),std::io::Error> {
     let puzzle = puzzle.borrow();
 
     let variant_str = match puzzle.variant {
@@ -25,7 +25,7 @@ pub fn write_puzzle_to_cro(puzzle: Rc<RefCell<puzzle_backend::Puzzle>>, path_str
                     Some(puzzle_backend::SquareModifier::Shading) => "/s".to_string(),
                     Some(puzzle_backend::SquareModifier::Circle) => "/c".to_string(),
                 };
-                let mut c = if save_empty_grid {
+                let mut c = if save_solvable_grid {
                     "".to_string()
                 } else {
                     s.clone()
@@ -46,11 +46,18 @@ pub fn write_puzzle_to_cro(puzzle: Rc<RefCell<puzzle_backend::Puzzle>>, path_str
         down_clues.insert(entry.label.to_string(), serde_json::Value::String(entry.clue.clone()));
     }
 
+    let hash_string = if save_solvable_grid {
+        puzzle.get_puzzle_total_hash().to_string()
+    } else {
+        "NULL".to_string()
+    };
+
     let json_rep = json!({
         "variant": variant_str, 
         "squares": sq_strs,
         "across_clues": across_clues,
         "down_clues": down_clues,
+        "hash_string": hash_string,
     });
 
     std::fs::write(path_str,json_rep.to_string())
@@ -165,6 +172,23 @@ pub fn get_puzzle_from_cro(path_str: String) -> std::result::Result<puzzle_backe
         };
         puz.set_clue_text(label, puzzle_backend::EntryVariant::Down, clue_text.clone());
     }
+
+    match &value_contents["hash_string"] {
+        serde_json::Value::String(s) => {
+            match s.as_str() {
+                "NULL" => {
+                    // Do nothing, as the puzzle is not in the final, solved state.
+                },
+                _ => {
+                    puz.solved_hash = Some(s.parse::<u64>().unwrap());
+                    puz.fill_only = true;
+                }
+            }
+        },
+        _ => {
+            // For backwards compatibility, doing nothing here is ok.
+        }
+    };
 
     Ok(puz)
 }

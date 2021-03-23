@@ -44,34 +44,38 @@ impl CluesBrowser {
     }
 
     pub fn set_being_modified(&mut self, label: u32, variant: puzzle_backend::EntryVariant) {
-        match variant {
-            puzzle_backend::EntryVariant::Across => {
-                let entry = self.a_clues.iter_mut().find(|x| x.label == label).unwrap();
-                entry.being_modified = true;
+        if !self.backend.borrow().fill_only {
+            match variant {
+                puzzle_backend::EntryVariant::Across => {
+                    let entry = self.a_clues.iter_mut().find(|x| x.label == label).unwrap();
+                    entry.being_modified = true;
+                }
+                puzzle_backend::EntryVariant::Down => {
+                    let entry = self.d_clues.iter_mut().find(|x| x.label == label).unwrap();
+                    entry.being_modified = true;
+                }
             }
-            puzzle_backend::EntryVariant::Down => {
-                let entry = self.d_clues.iter_mut().find(|x| x.label == label).unwrap();
-                entry.being_modified = true;
-            }
+            self.being_modified = Some((label,variant));
         }
-        self.being_modified = Some((label,variant));
     }
 
     pub fn unset_being_modified(&mut self) {
-        let (l,v) = self.being_modified.unwrap();
-        match v {
-            puzzle_backend::EntryVariant::Across => {
-                let entry = self.a_clues.iter_mut().find(|x| x.label == l).unwrap();
-                entry.being_modified = false;
-                self.backend.borrow_mut().set_clue_text(l,v,entry.clue_cache.clone());
+        if !self.backend.borrow().fill_only {
+            let (l,v) = self.being_modified.unwrap();
+            match v {
+                puzzle_backend::EntryVariant::Across => {
+                    let entry = self.a_clues.iter_mut().find(|x| x.label == l).unwrap();
+                    entry.being_modified = false;
+                    self.backend.borrow_mut().set_clue_text(l,v,entry.clue_cache.clone());
+                }
+                puzzle_backend::EntryVariant::Down => {
+                    let entry = self.d_clues.iter_mut().find(|x| x.label == l).unwrap();
+                    entry.being_modified = false;
+                    self.backend.borrow_mut().set_clue_text(l,v,entry.clue_cache.clone());
+                }
             }
-            puzzle_backend::EntryVariant::Down => {
-                let entry = self.d_clues.iter_mut().find(|x| x.label == l).unwrap();
-                entry.being_modified = false;
-                self.backend.borrow_mut().set_clue_text(l,v,entry.clue_cache.clone());
-            }
+            self.being_modified = None;
         }
-        self.being_modified = None;
     }
 
     pub fn set_clue_text(&mut self, text: String) {
@@ -90,17 +94,18 @@ impl CluesBrowser {
 
     pub fn view (&mut self) -> Element<central_ui::Message> {
         Row::new()
+        .width(Length::FillPortion(1))
+        .spacing(5)
+        .align_items(Align::Start)
         .push(
         self.a_clues.iter_mut().fold(
         Scrollable::new(&mut self.a_scroller)
-        .width(Length::from(200))
-        , |sc, x| sc.push(x.view()))
+        , |sc, x| sc.push(x.view())).width(Length::Fill)
         )
         .push(
         self.d_clues.iter_mut().fold(
         Scrollable::new(&mut self.d_scroller)
-        .width(Length::from(200))
-        , |sc, x| sc.push(x.view()))
+        , |sc, x| sc.push(x.view())).width(Length::Fill)
         )
         .into()
     }
@@ -144,7 +149,9 @@ impl ClueEntry {
             .spacing(10)
             .align_items(Align::Center)
             .push(
-                t
+                Button::new(&mut self.button, t)
+                .on_press(central_ui::Message::ClueLeftModification(self.label,self.variant))
+                .min_width(60)
             )
             .push(
                 TextInput::new(&mut self.input, "", &self.clue_cache, central_ui::Message::ClueModified)
@@ -156,7 +163,9 @@ impl ClueEntry {
             .spacing(10)
             .align_items(Align::Center)
             .push(
-                Button::new(&mut self.button, t).on_press(central_ui::Message::ClueEnteredModification(self.label,self.variant))
+                Button::new(&mut self.button, t)
+                .on_press(central_ui::Message::ClueEnteredModification(self.label,self.variant))
+                .min_width(60)
             )
             .push(
                 Text::new(self.clue_cache.clone())

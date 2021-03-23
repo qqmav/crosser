@@ -123,6 +123,7 @@ pub struct PuzzleCanvas {
     modifier_cache: canvas::Cache,
     highlighter_cache: canvas::Cache,
     clues_cache: canvas::Cache,
+    solved_highlight_cache: canvas::Cache,
 }
 
 impl PuzzleCanvas {
@@ -145,6 +146,7 @@ impl PuzzleCanvas {
             modifier_cache: Default::default(),
             highlighter_cache: Default::default(),
             clues_cache: Default::default(),
+            solved_highlight_cache: Default::default(),
         }
     }
 
@@ -354,23 +356,27 @@ impl canvas::Program<Message> for PuzzleCanvas {
                                         let (next_var,next_clue_index) = match self.selected_variant {
                                             puzzle_backend::EntryVariant::Across => {
                                                 let a_entries = &self.backend.borrow().across_entries;
-                                                // Can unwrap because we have only allowed text squares to be selected.
-                                                let a_index = a_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).across_entry.unwrap());
-                                                if let Some(a) = a_index {
-                                                    if !m.shift {
-                                                        if a < a_entries.len() - 1 {
-                                                            (Some(puzzle_backend::EntryVariant::Across), Some(a + 1))
+                                                let a_entry = self.backend.borrow().at(tx,ty).across_entry;
+                                                if let Some(num) = a_entry {
+                                                    let a_index = a_entries.iter().position(|x| x.label == num);
+                                                    if let Some(a) = a_index {
+                                                        if !m.shift {
+                                                            if a < a_entries.len() - 1 {
+                                                                (Some(puzzle_backend::EntryVariant::Across), Some(a + 1))
+                                                            } else {
+                                                                self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                                                (Some(puzzle_backend::EntryVariant::Down),Some(0))
+                                                            }
                                                         } else {
-                                                            self.selected_variant = puzzle_backend::EntryVariant::Down;
-                                                            (Some(puzzle_backend::EntryVariant::Down),Some(0))
+                                                            if a > 0 {
+                                                                (Some(puzzle_backend::EntryVariant::Across),Some(a - 1))
+                                                            } else {
+                                                                self.selected_variant = puzzle_backend::EntryVariant::Down;
+                                                                (Some(puzzle_backend::EntryVariant::Down),Some(self.backend.borrow().down_entries.len() - 1))
+                                                            }
                                                         }
                                                     } else {
-                                                        if a > 0 {
-                                                            (Some(puzzle_backend::EntryVariant::Across),Some(a - 1))
-                                                        } else {
-                                                            self.selected_variant = puzzle_backend::EntryVariant::Down;
-                                                            (Some(puzzle_backend::EntryVariant::Down),Some(self.backend.borrow().down_entries.len() - 1))
-                                                        }
+                                                        (None,None)
                                                     }
                                                 } else {
                                                     (None,None)
@@ -378,26 +384,31 @@ impl canvas::Program<Message> for PuzzleCanvas {
                                             },
                                             puzzle_backend::EntryVariant::Down => {
                                                 let d_entries = &self.backend.borrow().down_entries;
-                                                let d_index = d_entries.iter().position(|x| x.label == self.backend.borrow().at(tx,ty).down_entry.unwrap());
-                                                if let Some(d) = d_index {
-                                                    if !m.shift {
-                                                        if d < d_entries.len() - 1 {
-                                                            (Some(puzzle_backend::EntryVariant::Down),Some(d + 1))
+                                                let d_entry = self.backend.borrow().at(tx,ty).down_entry;
+                                                if let Some(num) = d_entry {
+                                                    let d_index = d_entries.iter().position(|x| x.label == num);
+                                                    if let Some(d) = d_index {
+                                                        if !m.shift {
+                                                            if d < d_entries.len() - 1 {
+                                                                (Some(puzzle_backend::EntryVariant::Down),Some(d + 1))
+                                                            } else {
+                                                                self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                                                (Some(puzzle_backend::EntryVariant::Across),Some(0))
+                                                            }
                                                         } else {
-                                                            self.selected_variant = puzzle_backend::EntryVariant::Across;
-                                                            (Some(puzzle_backend::EntryVariant::Across),Some(0))
-                                                        }
+                                                            if d > 0 {
+                                                                (Some(puzzle_backend::EntryVariant::Down),Some(d - 1))
+                                                            } else {
+                                                                self.selected_variant = puzzle_backend::EntryVariant::Across;
+                                                                (Some(puzzle_backend::EntryVariant::Across),Some(self.backend.borrow().across_entries.len()-1))
+                                                            }
+                                                        } 
                                                     } else {
-                                                        if d > 0 {
-                                                            (Some(puzzle_backend::EntryVariant::Down),Some(d - 1))
-                                                        } else {
-                                                            self.selected_variant = puzzle_backend::EntryVariant::Across;
-                                                            (Some(puzzle_backend::EntryVariant::Across),Some(self.backend.borrow().across_entries.len()-1))
-                                                        }
-                                                    } 
+                                                        (None,None)
+                                                    }
                                                 } else {
-                                                    (None,None)
-                                                }
+                                                (None, None)
+                                            }
                                             },
                                         };
                                         if let Some(i) = next_clue_index {
@@ -489,6 +500,7 @@ impl canvas::Program<Message> for PuzzleCanvas {
             self.modifier_cache.clear();
             self.highlighter_cache.clear();
             self.clues_cache.clear();
+            self.solved_highlight_cache.clear();
         }
 
         (e, m)
@@ -688,26 +700,48 @@ impl canvas::Program<Message> for PuzzleCanvas {
                 },
             };
 
+            let a_len = a_s.len();
+            let a_size = if a_len < 50 {
+                0.60 * content_size.height
+            } else {
+                0.60 * content_size.height * (45.0 / a_len as f32)
+            };
             let a_text = Text {
                 color: Color::BLACK,
                 position: Point::new(across_start.x, across_start.y + 0.20 * content_size.height),
-                size: 0.60 * content_size.height,
+                size: a_size,
                 content: a_s,
                 ..Text::default()
             };
             frame.fill_text(a_text);
 
+            let d_len = d_s.len();
+            let d_size = if d_len < 50 {
+                0.60 * content_size.height
+            } else {
+                0.60 * content_size.height * (45.0 / d_len as f32)
+            };
             let d_text = Text {
                 color: Color::BLACK,
                 position: Point::new(down_start.x, down_start.y + 0.20 * content_size.height),
-                size: 0.60 * content_size.height,
+                size: d_size,
                 content: d_s,
                 ..Text::default()
             };
             frame.fill_text(d_text);
         });
+
+        let solved = self.solved_highlight_cache.draw(bounds.size(), |frame| {
+            if self.backend.borrow().is_solved() {
+                let color = Color::from_rgba(0.0,1.0,0.0,0.3);
+                for sq in &frame_grid_info.frame_square_infos {
+                    let sq_path = Path::rectangle(sq.content_top_left_corner,Size::new(frame_grid_info.content_width,frame_grid_info.content_width));
+                    frame.fill(&sq_path, color);
+                };
+            }
+        });
         
-        vec![grid,labels,content,modifiers,highlighter,clues]
+        vec![grid,labels,content,modifiers,highlighter,clues,solved]
     }
 }
 

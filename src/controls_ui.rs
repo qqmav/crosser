@@ -105,7 +105,7 @@ impl ControlsRow {
                 .push(
                     Checkbox::new(
                         self.save_empty_grid,
-                        "Strip grid content?".to_string(),
+                        "Save final solvable grid?".to_string(),
                         central_ui::Message::SaveEmptyGrid
                     )
                 )

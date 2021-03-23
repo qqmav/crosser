@@ -67,8 +67,8 @@ impl Sandbox for CrosserUI {
             .align_items(Align::Center)
             .push(
                 Canvas::new(&mut self.puzzle_ui)
-                .width(Length::Fill)
                 .height(Length::Fill)
+                .width(Length::FillPortion(2))
             )
             .push(
                 self.clues.view()
@@ -80,14 +80,18 @@ impl Sandbox for CrosserUI {
     fn update(&mut self, message: Message) {
         match message {
             Message::ClueEnteredModification(l,v) => {
-                if self.clues.being_modified.is_none() {
-                    self.puzzle_ui.set_ignore_keystrokes(true);
-                    self.clues.set_being_modified(l, v);
+                if !self.puzzle.borrow().fill_only {
+                    if self.clues.being_modified.is_none() {
+                        self.puzzle_ui.set_ignore_keystrokes(true);
+                        self.clues.set_being_modified(l, v);
+                    }
                 }
             }
             Message::ClueLeftModification(_l,_v) => {
-                self.puzzle_ui.set_ignore_keystrokes(false);
-                self.clues.unset_being_modified();
+                if !self.puzzle.borrow().fill_only {
+                    self.puzzle_ui.set_ignore_keystrokes(false);
+                    self.clues.unset_being_modified();
+                }
             }
             Message::ClueModified(s) => {
                 // Cache text to prevent mut issues
