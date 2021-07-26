@@ -263,22 +263,27 @@ impl canvas::Program<Message> for PuzzleCanvas {
                                 },
                                 iced::keyboard::KeyCode::Backspace => {
                                     if let Some((tx,ty)) = self.selected_square {
-                                        self.backend.borrow_mut().clear_sq_contents(tx,ty);
+                                        let square_was_empty = self.backend.borrow_mut().clear_sq_contents(tx,ty);
+
                                         ui_updated = true;
 
-                                        let prev = match self.selected_variant {
-                                            puzzle_backend::EntryVariant::Across => {
-                                                self.backend.borrow().at(tx,ty).prev_across
-                                            },
-                                            puzzle_backend::EntryVariant::Down => {
-                                                self.backend.borrow().at(tx,ty).prev_down
-                                            },
-                                        };
+                                        if square_was_empty {
+                                            let prev = match self.selected_variant {
+                                                puzzle_backend::EntryVariant::Across => {
+                                                    self.backend.borrow().at(tx,ty).prev_across
+                                                },
+                                                puzzle_backend::EntryVariant::Down => {
+                                                    self.backend.borrow().at(tx,ty).prev_down
+                                                },
+                                            };
 
-                                        if let Some(s) = prev {
-                                            let prev_sq = &self.backend.borrow().squares[s];
-                                            self.selected_square = Some((prev_sq.x,prev_sq.y));
-                                        };
+                                            if let Some(s) = prev {
+                                                let prev_sq = self.backend.borrow().squares[s].clone();
+                                                let (px,py) = (prev_sq.x,prev_sq.y);
+                                                self.selected_square = Some((px,py));
+                                                self.backend.borrow_mut().clear_sq_contents(px,py);
+                                            };
+                                        }
                                     }
                                 },
                                 iced::keyboard::KeyCode::Delete => {

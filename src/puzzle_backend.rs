@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum SquareContents {
     Blocker,
     TextContent(String, Option<SquareModifier>),
@@ -9,6 +10,7 @@ pub enum SquareModifier {
     Circle,
 }
 
+#[derive(Clone)]
 pub struct Square {
     pub content: SquareContents,
     pub label: Option<u32>,
@@ -176,14 +178,19 @@ impl Puzzle {
         }
     }
 
-    pub fn clear_sq_contents(&mut self, x: u32, y: u32) {
+    pub fn clear_sq_contents(&mut self, x: u32, y: u32) -> bool {
         let index = self.xy_to_index(x, y);
+        let mut is_empty = false;
         match &self.squares[index].content {
-            SquareContents::TextContent(_,modifier_option) => {
+            SquareContents::TextContent(s,modifier_option) => {
+                if s.is_empty() {
+                    is_empty = true;
+                };
                 self.squares[index].content = SquareContents::TextContent(String::new(),modifier_option.clone());
-            }
-            _ => ()
+            },
+            _ => {}
         }
+        is_empty
     }
 
     pub fn calculate_clues(&mut self) {
