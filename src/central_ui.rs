@@ -1,4 +1,5 @@
-use iced::{Align, Canvas, Column, Element, Length, Row, Sandbox};
+use iced::{Center, Element, Length};
+use iced::widget::{column, row, canvas};
 use crate::puzzle_backend;
 use crate::puzzle_canvas;
 use crate::clue_ui;
@@ -32,52 +33,44 @@ pub enum Message {
 
     OpenPathModified(String),
     AttemptOpen,
+
+    CanvasMessage(puzzle_canvas::CanvasMessage),
 }
 
-impl Sandbox for CrosserUI {
-    type Message = Message; 
-
-    fn new() -> Self {
+impl Default for CrosserUI {
+    fn default() -> Self {
         let t = puzzle_backend::PuzzleType::Mini;
         let p = Rc::new(RefCell::new(puzzle_backend::Puzzle::new(t)));
         let puzzle_ui = puzzle_canvas::PuzzleCanvas::new(p.clone());
         let clues = clue_ui::CluesBrowser::new(p.clone());
         let controls = controls_ui::ControlsRow::new();
-        CrosserUI { 
-                puzzle: p,
-                puzzle_ui,
-                clues,
-                controls,
-                }
+        CrosserUI {
+            puzzle: p,
+            puzzle_ui,
+            clues,
+            controls,
+        }
     }
+}
 
-    fn title(&self) -> String {
-        String::from("Crosser -- The Friendly Crossword Puzzle Templating App")
-    }
-
-    fn view(&mut self) -> Element<Message> {
-        Column::new() 
-        .padding(10)
-        .push(
-            self.controls.view()
-        )
-        .push(
-            Row::new()
-            .padding(20)
-            .align_items(Align::Center)
-            .push(
-                Canvas::new(&mut self.puzzle_ui)
-                .height(Length::Fill)
-                .width(Length::FillPortion(2))
-            )
-            .push(
+impl CrosserUI {
+    pub fn view(&self) -> Element<'_, Message> {
+        column![
+            self.controls.view(),
+            row![
+                canvas(&self.puzzle_ui)
+                    .height(Length::Fill)
+                    .width(Length::FillPortion(2)),
                 self.clues.view()
-            )
-        )
+            ]
+            .padding(20)
+            .align_y(Center)
+        ]
+        .padding(10)
         .into()
     }
 
-    fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message) {
         match message {
             Message::ClueEnteredModification(l,v) => {
                 if !self.puzzle.borrow().fill_only {
@@ -121,7 +114,7 @@ impl Sandbox for CrosserUI {
                 match res {
                     Ok(()) => {
                         self.controls.set_state(controls_ui::State::OperationResult("File wrote successfully!".to_string()));
-                    } 
+                    }
                     Err(e) => {
                         self.controls.set_state(controls_ui::State::OperationResult("Write unsuccessful: ".to_string() + &e.to_string()));
                     }
@@ -144,7 +137,15 @@ impl Sandbox for CrosserUI {
                     }
                 }
             }
+            Message::CanvasMessage(canvas_msg) => {
+                // Handle messages from the canvas
+                match self.puzzle_ui.handle_message(canvas_msg) {
+                    Some(Message::CluesUpdated) => {
+                        self.clues.update_clues();
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }
-

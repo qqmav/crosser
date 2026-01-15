@@ -5,8 +5,8 @@ mod puzzle_backend;
 mod puzzle_canvas;
 mod puzzle_file_io;
 
-use iced::{Application, Settings};
-
 fn main() -> iced::Result {
-    central_ui::CrosserUI::run(Settings::default())
+    iced::application(central_ui::CrosserUI::default, central_ui::CrosserUI::update, central_ui::CrosserUI::view)
+        .title("Crosser -- The Friendly Crossword Puzzle Templating App")
+        .run()
 }

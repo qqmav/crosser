@@ -1,4 +1,5 @@
-use iced::{Align, button, Button, Element, Length, Row, scrollable, Scrollable, Text, text_input, TextInput};
+use iced::{Center, Element, Length};
+use iced::widget::{button, row, scrollable, text, text_input};
 use crate::central_ui;
 use crate::puzzle_backend;
 
@@ -8,9 +9,7 @@ use std::cell::RefCell;
 pub struct CluesBrowser {
     pub backend: Rc<RefCell<puzzle_backend::Puzzle>>,
     pub a_clues: Vec<ClueEntry>,
-    pub a_scroller: scrollable::State,
     pub d_clues: Vec<ClueEntry>,
-    pub d_scroller: scrollable::State,
     pub being_modified: Option<(u32, puzzle_backend::EntryVariant)>,
 }
 
@@ -19,9 +18,7 @@ impl CluesBrowser {
         let mut c = CluesBrowser {
             backend,
             a_clues: Vec::new(),
-            a_scroller: Default::default(),
             d_clues: Vec::new(),
-            d_scroller: Default::default(),
             being_modified: None,
         };
         c.update_clues();
@@ -78,42 +75,47 @@ impl CluesBrowser {
         }
     }
 
-    pub fn set_clue_text(&mut self, text: String) {
+    pub fn set_clue_text(&mut self, text_val: String) {
         let (l,v) = self.being_modified.unwrap();
         match v {
             puzzle_backend::EntryVariant::Across => {
                 let entry = self.a_clues.iter_mut().find(|x| x.label == l).unwrap();
-                entry.clue_cache = text;
+                entry.clue_cache = text_val;
             }
             puzzle_backend::EntryVariant::Down => {
                 let entry = self.d_clues.iter_mut().find(|x| x.label == l).unwrap();
-                entry.clue_cache = text;
+                entry.clue_cache = text_val;
             }
         }
     }
 
-    pub fn view (&mut self) -> Element<central_ui::Message> {
-        Row::new()
+    pub fn view(&self) -> Element<'_, central_ui::Message> {
+        let a_content: Element<_> = self.a_clues.iter()
+            .fold(
+                iced::widget::column![].spacing(2),
+                |col, entry| col.push(entry.view())
+            )
+            .into();
+
+        let d_content: Element<_> = self.d_clues.iter()
+            .fold(
+                iced::widget::column![].spacing(2),
+                |col, entry| col.push(entry.view())
+            )
+            .into();
+
+        row![
+            scrollable(a_content).width(Length::Fill),
+            scrollable(d_content).width(Length::Fill)
+        ]
         .width(Length::FillPortion(1))
         .spacing(5)
-        .align_items(Align::Start)
-        .push(
-        self.a_clues.iter_mut().fold(
-        Scrollable::new(&mut self.a_scroller)
-        , |sc, x| sc.push(x.view())).width(Length::Fill)
-        )
-        .push(
-        self.d_clues.iter_mut().fold(
-        Scrollable::new(&mut self.d_scroller)
-        , |sc, x| sc.push(x.view())).width(Length::Fill)
-        )
+        .align_y(Center)
         .into()
     }
 }
 
 pub struct ClueEntry {
-    pub button: button::State,
-    pub input: text_input::State,
     pub label: u32,
     pub clue_cache: String,
     pub variant: puzzle_backend::EntryVariant,
@@ -123,8 +125,6 @@ pub struct ClueEntry {
 impl ClueEntry {
     pub fn new(label: u32, variant: puzzle_backend::EntryVariant, clue: String) -> Self {
         ClueEntry {
-            button: Default::default(),
-            input: Default::default(),
             label,
             clue_cache: clue,
             variant,
@@ -132,7 +132,7 @@ impl ClueEntry {
         }
     }
 
-    pub fn view(&mut self) -> Element<central_ui::Message> {
+    pub fn view(&self) -> Element<'_, central_ui::Message> {
         let a_or_d = match self.variant {
             puzzle_backend::EntryVariant::Across => 'A',
             puzzle_backend::EntryVariant::Down => 'D',
@@ -140,36 +140,31 @@ impl ClueEntry {
 
         let mut prefix = self.label.to_string();
         prefix.push(a_or_d);
-        prefix.push_str(&": ".to_string());
+        prefix.push_str(": ");
 
-        let t = Text::new(prefix);
+        let t = text(prefix.clone());
 
         if self.being_modified {
-            Row::new()
+            row![
+                button(t)
+                    .on_press(central_ui::Message::ClueLeftModification(self.label, self.variant))
+                    .width(60),
+                text_input("", &self.clue_cache)
+                    .on_input(central_ui::Message::ClueModified)
+                    .on_submit(central_ui::Message::ClueLeftModification(self.label, self.variant))
+            ]
             .spacing(10)
-            .align_items(Align::Center)
-            .push(
-                Button::new(&mut self.button, t)
-                .on_press(central_ui::Message::ClueLeftModification(self.label,self.variant))
-                .min_width(60)
-            )
-            .push(
-                TextInput::new(&mut self.input, "", &self.clue_cache, central_ui::Message::ClueModified)
-                .on_submit(central_ui::Message::ClueLeftModification(self.label,self.variant))
-            )
+            .align_y(Center)
             .into()
         } else {
-            Row::new()
+            row![
+                button(t)
+                    .on_press(central_ui::Message::ClueEnteredModification(self.label, self.variant))
+                    .width(60),
+                text(self.clue_cache.clone())
+            ]
             .spacing(10)
-            .align_items(Align::Center)
-            .push(
-                Button::new(&mut self.button, t)
-                .on_press(central_ui::Message::ClueEnteredModification(self.label,self.variant))
-                .min_width(60)
-            )
-            .push(
-                Text::new(self.clue_cache.clone())
-            )
+            .align_y(Center)
             .into()
         }
     }
